@@ -1,0 +1,389 @@
+"""Semantic query constraints for LiIta SPARQL synthesis."""
+
+import re
+
+SEMANTIC_MANDATORY_PATTERNS = """
+## CRITICAL SEMANTIC QUERY CONSTRAINTS
+
+Semantic relations and definitions are accessed via EXTERNAL SERVICE, NOT graphs!
+
+### CORE PRINCIPLE: All Semantic Data is in CompL-it SERVICE
+
+**CORRECT PATTERN:**
+```sparql
+SERVICE <https://klab.ilc.cnr.it/graphdb-compl-it/> {
+    ?word ontolex:canonicalForm [ ontolex:writtenRep ?wr ] ;
+          ontolex:sense [ skos:definition ?definition ] .
+    FILTER(STR(?wr) = "casa")
+}
+```
+
+**WRONG PATTERN:**
+```sparql
+# WRONG - Senses are NOT in LiIta graphs!
+GRAPH <http://liita.it/data> {
+    ?word ontolex:sense ?sense .  # WRONG!
+}
+```
+
+---
+
+## CRITICAL: SEMANTIC RELATION DIRECTIONS
+
+The lexinfo vocabulary uses COUNTERINTUITIVE property directions!
+The property name indicates what the OBJECT is, not the SUBJECT.
+
+### lexinfo:hypernym - Points FROM general TO specific
+- `?sensaA lexinfo:hypernym ?senseB` means "A has B among its hyponyms" = "B is more specific than A"
+- To find HYPONYMS (more specific) of "veicolo": `?veicoloSense lexinfo:hypernym ?hyponymSense`
+- To find HYPERNYMS (more general) of "cane": `?caneSense lexinfo:hyponym ?hypernymSense`
+
+### lexinfo:hyponym - Points FROM specific TO general
+- `?senseA lexinfo:hyponym ?senseB` means "A has B as its hypernym" = "B is more general than A"
+- This is how you find BROADER categories!
+
+### lexinfo:partMeronym - Points FROM part TO whole
+- `?partSense lexinfo:partMeronym ?wholeSense` means "partSense is a PART OF wholeSense"
+- To find PARTS of "corpo": `?partSense lexinfo:partMeronym ?corpoSense`
+- To find WHOLES containing "braccio": `?braccioSense lexinfo:partMeronym ?wholeSense`
+
+---
+
+## Pattern 1: Find HYPONYMS (more specific terms)
+
+**Example: Find hyponyms of "veicolo" (vehicle) - like "automobile", "bicicletta"**
+```sparql
+SERVICE <https://klab.ilc.cnr.it/graphdb-compl-it/> {
+    # Find the target word
+    ?word ontolex:canonicalForm [ ontolex:writtenRep ?wrIta ] .
+    FILTER(STR(?wrIta) = "veicolo")
+
+    # Get its sense
+    ?word ontolex:sense ?sense .
+
+    # Find hyponyms: use lexinfo:hypernym FROM the general term
+    ?sense lexinfo:hypernym ?hyponymSense .
+
+    # Get the hyponym words
+    ?hyponymWord ontolex:sense ?hyponymSense ;
+                 ontolex:canonicalForm [ ontolex:writtenRep ?result ] .
+}
+```
+
+---
+
+## Pattern 2: Find HYPERNYMS (more general terms)
+
+**Example: Find hypernyms of "cane" (dog) - like "animale", "mammifero"**
+```sparql
+SERVICE <https://klab.ilc.cnr.it/graphdb-compl-it/> {
+    # Find the target word
+    ?word ontolex:canonicalForm [ ontolex:writtenRep ?wrIta ] .
+    FILTER(STR(?wrIta) = "cane")
+
+    # Get its sense
+    ?word ontolex:sense ?sense .
+
+    # Find hypernyms: use lexinfo:hyponym FROM the specific term
+    ?sense lexinfo:hyponym ?hypernymSense .
+
+    # Get the hypernym words
+    ?hypernymWord ontolex:sense ?hypernymSense ;
+                  ontolex:canonicalForm [ ontolex:writtenRep ?result ] .
+}
+```
+
+---
+
+## Pattern 3: Find PARTS (meronyms) of something
+
+**Example: Find parts of "corpo" (body) - like "braccio", "mano", "testa"**
+```sparql
+SERVICE <https://klab.ilc.cnr.it/graphdb-compl-it/> {
+    # Find the WHOLE (corpo)
+    ?wholeWord ontolex:canonicalForm [ ontolex:writtenRep ?wholeWr ] .
+    FILTER(STR(?wholeWr) = "corpo")
+
+    # Get the whole's sense
+    ?wholeWord ontolex:sense ?wholeSense .
+
+    # Find parts: partMeronym points FROM part TO whole
+    ?partSense lexinfo:partMeronym ?wholeSense .
+
+    # Get the part words
+    ?partWord ontolex:sense ?partSense ;
+              ontolex:canonicalForm [ ontolex:writtenRep ?result ] .
+}
+```
+
+---
+
+## Pattern 4: Find WHOLES containing something
+
+**Example: What is "braccio" (arm) a part of? - like "corpo"**
+```sparql
+SERVICE <https://klab.ilc.cnr.it/graphdb-compl-it/> {
+    # Find the PART (braccio)
+    ?partWord ontolex:canonicalForm [ ontolex:writtenRep ?partWr ] .
+    FILTER(STR(?partWr) = "braccio")
+
+    # Get the part's sense
+    ?partWord ontolex:sense ?partSense .
+
+    # Find wholes: partMeronym points FROM part TO whole
+    ?partSense lexinfo:partMeronym ?wholeSense .
+
+    # Get the whole words
+    ?wholeWord ontolex:sense ?wholeSense ;
+               ontolex:canonicalForm [ ontolex:writtenRep ?result ] .
+}
+```
+
+---
+
+## Pattern 5: Basic Definition Lookup
+```sparql
+SERVICE <https://klab.ilc.cnr.it/graphdb-compl-it/> {
+    ?word ontolex:canonicalForm [ ontolex:writtenRep ?wr ] .
+    FILTER(STR(?wr) = "word_to_lookup")
+
+    ?word ontolex:sense [ skos:definition ?definition ] .
+}
+```
+
+---
+
+## Pattern 6: Linking CompL-it to LiIta (CRITICAL!)
+
+**CompL-it and LiIta share URIs for lexical entries!**
+
+Variables bound in the SERVICE block can be used directly outside to access LiIta data.
+
+**Example: Find meronyms of "giorno" with their Parmigiano translations**
+```sparql
+SERVICE <https://klab.ilc.cnr.it/graphdb-compl-it/> {
+    # Find the target word
+    ?word ontolex:canonicalForm [ ontolex:writtenRep ?lemma ] ;
+          ontolex:sense ?sense .
+    FILTER(STR(?lemma) = "giorno")
+
+    # Find meronyms (parts of "giorno" like "mattina", "sera")
+    ?senseMeronym lexinfo:partMeronym ?sense .
+
+    # Get the word that has this meronym sense
+    ?wordMeronym ontolex:sense ?senseMeronym .
+}
+
+# OUTSIDE SERVICE: Use ?wordMeronym directly to access LiIta!
+?wordMeronym ontolex:canonicalForm ?liitaLemma .
+
+# Continue with LiIta patterns (e.g., get Parmigiano translation)
+?translationEntry ontolex:canonicalForm ?liitaLemma ;
+                  ^lime:entry <http://liita.it/data/id/LexicalReources/DialettoParmigiano/Lexicon> .
+?translationEntry vartrans:translatableAs ?dialectEntry .
+?dialectEntry ontolex:canonicalForm ?dialectLemma .
+?dialectLemma ontolex:writtenRep ?dialectWord .
+```
+
+**KEY INSIGHT**: The `?wordMeronym` URI from CompL-it is the SAME URI used in LiIta, so you can:
+1. Bind it inside SERVICE
+2. Use it outside SERVICE to access LiIta properties
+3. NO need for string matching with FILTER(STR(?x) = STR(?y))
+
+---
+
+## Pattern 7: String-based Linking (Alternative)
+
+When you need to start from LiIta and find CompL-it data by word form:
+```sparql
+# Step 1: Get lemma from LiIta
+GRAPH <http://liita.it/data> {
+    ?lemma a lila:Lemma ;
+           lila:hasPOS lila:noun ;
+           ontolex:writtenRep ?wrLiita .
+}
+
+# Step 2: Get semantic info from CompL-it by matching string
+SERVICE <https://klab.ilc.cnr.it/graphdb-compl-it/> {
+    ?word ontolex:canonicalForm [ ontolex:writtenRep ?wrComplit ] .
+    FILTER(STR(?wrComplit) = STR(?wrLiita))
+
+    ?word ontolex:sense [ skos:definition ?definition ] .
+}
+```
+
+**Use this pattern when**: You start from LiIta lemmas and need to find corresponding CompL-it entries.
+
+---
+
+## QUICK REFERENCE: Semantic Relation Directions
+
+| I want to find... | Starting from X | Use this pattern |
+|-------------------|-----------------|------------------|
+| Hyponyms (more specific) | X = general term | `?xSense lexinfo:hypernym ?resultSense` |
+| Hypernyms (more general) | X = specific term | `?xSense lexinfo:hyponym ?resultSense` |
+| Parts (meronyms) | X = the whole | `?resultSense lexinfo:partMeronym ?xSense` |
+| Wholes (holonyms) | X = the part | `?xSense lexinfo:partMeronym ?resultSense` |
+
+**Memory trick:**
+- `hypernym` property points DOWNWARD (to more specific)
+- `hyponym` property points UPWARD (to more general)
+- `partMeronym` property points FROM part TO whole
+
+---
+
+## COMMON MISTAKES TO AVOID
+
+### Mistake 1: Wrong direction for hypernym/hyponym
+```sparql
+# WRONG - This finds hypernyms, not hyponyms!
+?xSense lexinfo:hyponym ?resultSense .  # This gives MORE GENERAL terms
+
+# CORRECT - To find hyponyms (more specific):
+?xSense lexinfo:hypernym ?resultSense .
+```
+
+### Mistake 2: Wrong direction for meronyms
+```sparql
+# WRONG - This finds wholes, not parts!
+?xSense lexinfo:partMeronym ?resultSense .  # This gives things X is part OF
+
+# CORRECT - To find parts of X:
+?resultSense lexinfo:partMeronym ?xSense .  # Things that are parts of X
+```
+
+### Mistake 3: Using GRAPH for senses
+```sparql
+# WRONG - Senses are in SERVICE, not GRAPH
+GRAPH <http://liita.it/data> {
+    ?word ontolex:sense ?sense .
+}
+
+# CORRECT
+SERVICE <https://klab.ilc.cnr.it/graphdb-compl-it/> {
+    ?word ontolex:sense ?sense .
+}
+```
+
+---
+
+## VALIDATION CHECKLIST
+
+- [ ] All sense/definition queries use SERVICE block
+- [ ] SERVICE URL: `<https://klab.ilc.cnr.it/graphdb-compl-it/>`
+- [ ] For hyponyms: using `lexinfo:hypernym` (counterintuitive!)
+- [ ] For hypernyms: using `lexinfo:hyponym` (counterintuitive!)
+- [ ] For parts: `?partSense lexinfo:partMeronym ?wholeSense`
+- [ ] Variable is `?word` (not `?lemma`) in SERVICE
+- [ ] Use STR() in FILTER for string matching
+- [ ] NO lila: properties inside SERVICE
+- [ ] NO GRAPH blocks inside SERVICE
+"""
+
+
+# CompL-it SERVICE endpoint
+SEMANTIC_SERVICE_ENDPOINT = "https://klab.ilc.cnr.it/graphdb-compl-it/"
+
+
+def validate_semantic_query(sparql_query: str) -> tuple[bool, list[str]]:
+    """
+    Validate semantic query structure.
+
+    Args:
+        sparql_query: The SPARQL query to validate
+
+    Returns:
+        Tuple of (is_valid, list_of_error_messages)
+    """
+    errors = []
+    query_upper = sparql_query.upper()
+
+    # Check if it's a semantic query
+    has_sense = "ONTOLEX:SENSE" in query_upper
+    has_definition = "SKOS:DEFINITION" in query_upper
+    has_semantic_rel = any(
+        rel in query_upper
+        for rel in [
+            "LEXINFO:HYPERNYM",
+            "LEXINFO:HYPONYM",
+            "LEXINFO:PARTMERONYM",
+            "LEXINFO:HOLONYM",
+        ]
+    )
+
+    is_semantic = has_sense or has_definition or has_semantic_rel
+
+    if not is_semantic:
+        return (True, [])  # Not a semantic query, skip validation
+
+    # Check 1: Should use SERVICE
+    if "SERVICE" not in query_upper:
+        errors.append(
+            "SEMANTIC ERROR: Queries with senses/definitions must use "
+            "SERVICE <https://klab.ilc.cnr.it/graphdb-compl-it/>"
+        )
+
+    # Check 2: Senses should not be in GRAPH blocks
+    if "ONTOLEX:SENSE" in query_upper:
+        if "GRAPH" in query_upper:
+            graph_pos = query_upper.find("GRAPH")
+            service_pos = query_upper.find("SERVICE")
+            sense_pos = query_upper.find("ONTOLEX:SENSE")
+
+            if service_pos > 0 and sense_pos > 0:
+                if sense_pos < service_pos:
+                    errors.append(
+                        "SEMANTIC ERROR: ontolex:sense should be inside SERVICE block, "
+                        "not in GRAPH blocks"
+                    )
+
+    # Check 3: lila: properties should not be in SERVICE
+    if "SERVICE" in query_upper:
+        service_match = re.search(
+            r"SERVICE\s*<[^>]+>\s*\{([^}]+)\}", query_upper, re.DOTALL
+        )
+        if service_match:
+            service_content = service_match.group(1)
+            if "LILA:" in service_content:
+                errors.append(
+                    "SEMANTIC ERROR: lila: properties (like lila:Lemma, lila:hasPOS) "
+                    "do not exist in CompL-it SERVICE. Use OntoLex vocabulary instead."
+                )
+
+    # Check 4: Recommend STR() in FILTER
+    if "FILTER" in query_upper and "=" in query_upper:
+        if "STR(" not in query_upper:
+            errors.append(
+                "WARNING: Consider using STR() in FILTER for string comparisons, "
+                'e.g., FILTER(STR(?wr) = "word")'
+            )
+
+    return (len(errors) == 0, errors)
+
+
+# Semantic relations reference - CORRECTED DIRECTIONS
+SEMANTIC_RELATIONS = {
+    "hypernym": {
+        "property": "lexinfo:hypernym",
+        "use_to_find": "HYPONYMS (more specific terms)",
+        "pattern": "?generalSense lexinfo:hypernym ?specificSense",
+        "example": "To find hyponyms of 'veicolo': ?veicoloSense lexinfo:hypernym ?resultSense",
+        "note": "Counterintuitive! The hypernym property points TO the hyponym.",
+    },
+    "hyponym": {
+        "property": "lexinfo:hyponym",
+        "use_to_find": "HYPERNYMS (more general terms)",
+        "pattern": "?specificSense lexinfo:hyponym ?generalSense",
+        "example": "To find hypernyms of 'cane': ?caneSense lexinfo:hyponym ?resultSense",
+        "note": "Counterintuitive! The hyponym property points TO the hypernym.",
+    },
+    "partMeronym": {
+        "property": "lexinfo:partMeronym",
+        "use_to_find": "PARTS or WHOLES depending on direction",
+        "pattern_find_parts": "?partSense lexinfo:partMeronym ?wholeSense",
+        "pattern_find_wholes": "?partSense lexinfo:partMeronym ?wholeSense",
+        "example_parts": "To find parts of 'corpo': ?resultSense lexinfo:partMeronym ?corpoSense",
+        "example_wholes": "To find wholes containing 'braccio': ?braccioSense lexinfo:partMeronym ?resultSense",
+        "note": "The part points TO the whole it belongs to.",
+    },
+}
