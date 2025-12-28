@@ -2089,5 +2089,130 @@
       "COUNT_ENTITIES": 0.8,
       "META_GRAPH": 0.1
     }
+  },
+  {
+    "id": 132,
+    "sparql": "PREFIX lila: <http://lila-erc.eu/ontologies/lila/>\n\n# Count the number of lemmas for each part of speech\nSELECT ?pos (COUNT(*) as ?count)\nWHERE {\n  GRAPH <http://liita.it/data> {\n    # Find all lemmas\n    ?lemma a lila:Lemma .\n    # Get their part of speech\n    ?lemma lila:hasPOS ?pos .\n  }\n}\n# Group results by part of speech\nGROUP BY ?pos\n# Sort by count in descending order\nORDER BY DESC (?count )",
+    "nl": "Quantitative distribution of PoS in LiITA",
+    "nl_variants": {
+      "generic": "How many words are there for each part of speech in the Italian linguistic database?",
+      "linguist": "What is the quantitative distribution of lemmas across different grammatical categories in the Italian lexical resource?",
+      "linked_data_expert": "Count the number of lila:Lemma instances in the LiITA graph grouped by their lila:hasPOS property values, ordered by frequency.",
+      "pedagogical": "This query counts how many Italian lemmas belong to each grammatical category (noun, verb, adjective, etc.) in the database. It groups all lemmas by their part of speech and returns the count for each category, sorted from most to least frequent. This helps understand the composition of the lexical resource."
+    },
+    "patterns": {
+      "COUNT_ENTITIES": 1.0,
+      "META_GRAPH": 0.8,
+      "POS_FILTER": 0.7
+    }
+  },
+  {
+    "id": 133,
+    "sparql": "PREFIX lila: <http://lila-erc.eu/ontologies/lila/>\nPREFIX ontolex: <http://www.w3.org/ns/lemon/ontolex#>\n\n# Count the total number of matching nouns\nSELECT COUNT(*) as ?count\nWHERE {\n  GRAPH <http://liita.it/data> {\n    # Find all lemmas\n    ?lemma a lila:Lemma .\n    # Filter for nouns only\n    ?lemma lila:hasPOS lila:noun .\n    # Get the written representation\n    ?lemma ontolex:writtenRep ?wr .\n    # Filter for words ending with \"ione\"\n    FILTER regex(str(?wr), \"ione$\") .\n  }\n}",
+    "nl": "Count how many nouns end in -ione",
+    "nl_variants": {
+      "generic": "How many nouns ending in -ione are in the database?",
+      "linguist": "Count the Italian nominal lemmas that exhibit the derivational suffix -ione.",
+      "linked_data_expert": "Count all lila:Lemma instances with lila:hasPOS lila:noun whose ontolex:writtenRep matches the pattern 'ione",
+      "pedagogical": "This query counts Italian nouns that end with the suffix -ione (a common derivational suffix in Italian, similar to English -tion). It filters all lemmas to find only nouns and then checks if their written form ends with 'ione', returning the total count."
+    },
+    "patterns": {
+      "COUNT_ENTITIES": 1.0,
+      "POS_FILTER": 0.8,
+      "MORPHO_REGEX": 0.9
+    }
+  },
+  {
+    "id": 134,
+    "sparql": "PREFIX lila: <http://lila-erc.eu/ontologies/lila/>\nPREFIX ontolex: <http://www.w3.org/ns/lemon/ontolex#>\n\n# Return lemma URIs and their written forms\nSELECT ?lemma ?wr\nWHERE {\n  GRAPH <http://liita.it/data> {\n    # Find all lemmas\n    ?lemma a lila:Lemma .\n    # Get the written representation\n    ?lemma ontolex:writtenRep ?wr .\n    # Filter for words starting with \"infra\"\n    FILTER regex(str(?wr), \"^infra\") .\n  }\n}",
+    "nl": "Lemmas starting in infra-",
+    "nl_variants": {
+      "generic": "Show me all Italian words that start with the prefix infra-.",
+      "linguist": "List all lemmas beginning with the prefix 'infra-' along with their written forms.",
+      "linked_data_expert": "Retrieve all lila:Lemma instances and their ontolex:writtenRep values from the LiITA graph where the written representation matches the pattern '^infra'.",
+      "pedagogical": "This query finds all Italian lemmas whose written form begins with 'infra-' (like 'infrastruttura', 'infrarosso'). It searches through all lemmas in the database and returns both the lemma identifier and its actual written form for any word starting with this prefix."
+    },
+    "patterns": {
+      "MORPHO_REGEX": 1.0,
+      "META_GRAPH": 0.6
+    }
+  },
+  {
+    "id": 135,
+    "sparql": "PREFIX lime: <http://www.w3.org/ns/lemon/lime#>\nPREFIX vartrans: <http://www.w3.org/ns/lemon/vartrans#>\nPREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>\nPREFIX skos: <http://www.w3.org/2004/02/skos/core#>\nPREFIX dct: <http://purl.org/dc/terms/>\nPREFIX onto: <http://www.ontotext.com/>\nPREFIX lexinfo: <http://www.lexinfo.net/ontology/3.0/lexinfo#>\nPREFIX ontolex: <http://www.w3.org/ns/lemon/ontolex#>\nPREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>\nSELECT ?liitaLemma ?lemma ?parmigianoLemma ?wr ?definition WHERE\n{\n  # Query the external CompL-IT SPARQL endpoint\n  SERVICE <https://klab.ilc.cnr.it/graphdb-compl-it/> {\n    # Find a word that is an instance of ontolex:Word\n    ?word a ontolex:Word ;\n  # Get the part of speech label of the word\n  lexinfo:partOfSpeech [ rdfs:label ?pos ] ;\n                         # Get the sense (meaning) associated with the word\n                         ontolex:sense ?sense ;\n                         # Get the canonical form of the word\n                         ontolex:canonicalForm ?form .\n    # Get the written representation (spelling) of the canonical form\n    ?form ontolex:writtenRep ?lemma .\n    # Optionally retrieve the definition of the sense (if it exists)\n    OPTIONAL {\n      ?sense skos:definition ?definition \n    } .\n    # Optionally retrieve an example usage of the sense (if it exists)\n    OPTIONAL {\n      ?sense lexinfo:senseExample ?example \n    } .\n    # Filter to include only nouns\n    FILTER(str(?pos) = \"noun\") .\n    # Filter to include only definitions that start with \"uccello\" (bird)\n    FILTER (strstarts(str(?definition), \"uccello\")).\n  }\n  # Link the CompL-IT word to its LiITA lemma via the canonical form\n  ?word ontolex:canonicalForm ?liitaLemma.\n  # Find the Italian lexicon entry in the Parmigiano dialect that has this LiITA lemma as its canonical form\n  ?leItaLexiconPar ontolex:canonicalForm ?liitaLemma;\n                   # Verify that this entry belongs to the Parmigiano Lexicon (using inverse property path)\n                   ^lime:entry <http://liita.it/data/id/LexicalReources/DialettoParmigiano/Lexicon>.\n  # Find the corresponding Parmigiano translation via the translatableAs relation\n  ?leItaLexiconPar vartrans:translatableAs ?leParLexiconPar.\n  # Get the canonical form (lemma) of the Parmigiano translation\n  ?leParLexiconPar ontolex:canonicalForm ?parmigianoLemma.\n  # Get the written representation (spelling) of the Parmigiano lemma\n  ?parmigianoLemma ontolex:writtenRep ?wr\n}  \n# Group results by the Parmigiano written representation to avoid duplicates\ngroup by ?wr",
+    "nl": "Find all Italian entries linked to CompL-IT where the definition starts with the word \"uccello\", and show its translation in the Parmigian Glossary",
+    "nl_variants": {
+      "generic": "Find all Italian words whose definition starts with 'uccello' (bird) and show their Parmigiano dialect translations.",
+      "linguist": "Retrieve Italian nominal entries from the computational lexicon whose definitions begin with 'uccello', together with their corresponding translations in the Parmigiano variety.",
+      "linked_data_expert": "Query the CompL-IT SERVICE endpoint for ontolex:Word instances with part of speech 'noun' whose skos:definition starts with 'uccello', then follow the ontolex:canonicalForm link to LiITA lemmas and traverse the vartrans:translatableAs relation through the Parmigiano Lexicon to retrieve dialect translations.",
+      "pedagogical": "This query connects to an external Italian computational lexicon to find nouns defined as types of birds (definitions starting with 'uccello'). For each match, it traces the connections through the LiITA database to find how these words are translated in the Parmigiano dialect, returning the Italian standard form, the dialect translation, and the original definition."
+    },
+    "patterns": {
+      "SENSE_DEFINITION": 1.0,
+      "TRANSLATION": 0.9,
+      "SERVICE_INTEGRATION": 0.8
+    }
+  },
+  {
+    "id": 136,
+    "sparql": "PREFIX lime: <http://www.w3.org/ns/lemon/lime#>\nPREFIX vartrans: <http://www.w3.org/ns/lemon/vartrans#>\nPREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>\nPREFIX skos: <http://www.w3.org/2004/02/skos/core#>\nPREFIX dct: <http://purl.org/dc/terms/>\nPREFIX onto: <http://www.ontotext.com/>\nPREFIX lexinfo: <http://www.lexinfo.net/ontology/3.0/lexinfo#>\nPREFIX ontolex: <http://www.w3.org/ns/lemon/ontolex#>\nPREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>\n\n# Return hyponym senses with concatenated definitions\nSELECT ?senseHyponym (GROUP_CONCAT(str(?_definition);SEPARATOR=\"; esempio: \") AS ?definition) ?liitaLemma ?parmigianoLemma ?wr\nWHERE\n   {\n     # Query the external CompL-IT SPARQL endpoint\n     SERVICE <https://klab.ilc.cnr.it/graphdb-compl-it/> {\n       # Find all words in CompL-IT with their properties\n       ?word a ontolex:Word ;\n             lexinfo:partOfSpeech [ rdfs:label ?pos ] ;\n             ontolex:sense ?sense ;\n             ontolex:canonicalForm [ ontolex:writtenRep ?lemma ] .\n       # Find hyponyms (more specific terms) of this sense\n       ?sense lexinfo:hypernym ?senseHyponym .\n       # Optionally get the definition of the hyponym\n       OPTIONAL {\n         ?senseHyponym skos:definition ?_definition \n       } .\n       # Filter for nouns only\n       FILTER(str(?pos) = \"noun\") .\n       # Filter for the lemma \"colore\" (color)\n       FILTER(str(?lemma) = \"colore\") .\n       # Get the word associated with the hyponym sense\n       ?wordHyponym ontolex:sense ?senseHyponym .\n     } \n     # Link the CompL-IT hyponym word to LiITA lemma\n     ?wordHyponym ontolex:canonicalForm ?liitaLemma.\n     # Find the Italian lexicon entry in Parmigiano dialect\n     ?leItaLexiconPar ontolex:canonicalForm ?liitaLemma;\n                   ^lime:entry <http://liita.it/data/id/LexicalReources/DialettoParmigiano/Lexicon>.\n     # Find the corresponding Parmigiano translation\n     ?leItaLexiconPar vartrans:translatableAs ?leParLexiconPar.\n     # Get the Parmigiano lemma\n     ?leParLexiconPar ontolex:canonicalForm ?parmigianoLemma.\n     # Get the written form in Parmigiano\n     ?parmigianoLemma ontolex:writtenRep ?wr\n   }  \n# Group results to concatenate definitions\nGROUP BY ?senseHyponym ?liitaLemma ?parmigianoLemma ?wr\n# Sort alphabetically by Parmigiano written form\nORDER BY ASC(?wr)",
+    "nl": "Retrieves the Parmigiano and LiITA lemmas of the hyponyms of the lemma 'colore' in CompL-it",
+    "nl_variants": {
+      "generic": "Find all the specific types of colors and show their translations in Parmigiano dialect.",
+      "linguist": "Retrieve the hyponyms of 'colore' (i.e., specific color terms subordinate to the hypernym 'color') along with their standard Italian and Parmigiano dialect forms.",
+      "linked_data_expert": "Query CompL-IT for noun senses that are lexinfo:hypernym of 'colore' sense, retrieve the associated ontolex:Word instances, link them to LiITA canonical forms, and traverse vartrans:translatableAs through the Parmigiano Lexicon to obtain dialect translations, grouping and concatenating definitions.",
+      "pedagogical": "This query finds all specific color terms (like 'rosso', 'blu', 'verde') that are more specific types of the general concept 'colore'. It searches the computational lexicon for words that have a hierarchical relationship with 'colore', then retrieves both their standard Italian forms and their translations in the Parmigiano dialect, along with any available definitions."
+    },
+    "patterns": {
+      "SEMANTIC_RELATION": 1.0,
+      "TRANSLATION": 0.9,
+      "SERVICE_INTEGRATION": 0.8
+    }
+  },
+  {
+    "id": 137,
+    "sparql": "PREFIX lime: <http://www.w3.org/ns/lemon/lime#>\nPREFIX vartrans: <http://www.w3.org/ns/lemon/vartrans#>\nPREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>\nPREFIX skos: <http://www.w3.org/2004/02/skos/core#>\nPREFIX dct: <http://purl.org/dc/terms/>\nPREFIX onto: <http://www.ontotext.com/>\nPREFIX lexinfo: <http://www.lexinfo.net/ontology/3.0/lexinfo#>\nPREFIX ontolex: <http://www.w3.org/ns/lemon/ontolex#>\nPREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>\n\n# Return meronym senses with concatenated definitions\nSELECT ?senseMeronym (GROUP_CONCAT(str(?_definition);SEPARATOR=\"; esempio: \") AS ?definition) ?liitaLemma ?parmigianoLemma ?wr\nWHERE\n   {\n     # Query the external CompL-IT SPARQL endpoint\n     SERVICE <https://klab.ilc.cnr.it/graphdb-compl-it/> {\n       # Find all words in CompL-IT with their properties\n       ?word a ontolex:Word ;\n             lexinfo:partOfSpeech [ rdfs:label ?pos ] ;\n             ontolex:sense ?sense ;\n             ontolex:canonicalForm [ ontolex:writtenRep ?lemma ] .\n      # Find meronyms (parts) of this sense\n      ?senseMeronym lexinfo:partMeronym ?sense .\n       # Optionally get the definition of the meronym\n       OPTIONAL {\n         ?senseMeronym skos:definition ?_definition \n       } .\n       # Filter for nouns only\n       FILTER(str(?pos) = \"noun\") .\n       # Filter for the lemma \"giorno\" (day)\n       FILTER(str(?lemma) = \"giorno\") .\n       # Get the word associated with the meronym sense\n       ?wordMeronym ontolex:sense ?senseMeronym .\n     } \n     # Link the CompL-IT meronym word to LiITA lemma\n     ?wordMeronym ontolex:canonicalForm ?liitaLemma.\n     # Find the Italian lexicon entry in Parmigiano dialect\n     ?leItaLexiconPar ontolex:canonicalForm ?liitaLemma;\n                   ^lime:entry <http://liita.it/data/id/LexicalReources/DialettoParmigiano/Lexicon>.\n     # Find the corresponding Parmigiano translation\n     ?leItaLexiconPar vartrans:translatableAs ?leParLexiconPar.\n     # Get the Parmigiano lemma\n     ?leParLexiconPar ontolex:canonicalForm ?parmigianoLemma.\n     # Get the written form in Parmigiano\n     ?parmigianoLemma ontolex:writtenRep ?wr\n   }  \n# Group results to concatenate definitions\nGROUP BY ?senseMeronym ?liitaLemma ?parmigianoLemma ?wr\n# Sort alphabetically by Parmigiano written form\nORDER BY ASC(?wr)",
+    "nl": "Retrieves the Parmigiano and LiITA lemmas corresponding to the meronyms of the lemma 'giorno' in CompL-it",
+    "nl_variants": {
+      "generic": "Find all the parts or divisions of a day and show their translations in Parmigiano dialect.",
+      "linguist": "Retrieve the meronyms of 'giorno' (i.e., temporal units or parts that constitute a day) along with their standard Italian and Parmigiano dialect forms.",
+      "linked_data_expert": "Query CompL-IT for noun senses that have 'giorno' sense as their lexinfo:partMeronym (i.e., senses representing parts of 'giorno'), retrieve associated ontolex:Word instances, link to LiITA canonical forms, and traverse vartrans:translatableAs through the Parmigiano Lexicon to obtain dialect translations.",
+      "pedagogical": "This query finds all terms that represent parts or divisions of a day (like 'mattina', 'pomeriggio', 'sera'). It searches the computational lexicon for words that have a part-whole relationship with 'giorno' (day), then retrieves both their standard Italian forms and their translations in the Parmigiano dialect, along with any available definitions."
+    },
+    "patterns": {
+      "SEMANTIC_RELATION": 1.0,
+      "TRANSLATION": 0.9,
+      "SERVICE_INTEGRATION": 0.8
+    }
+  },
+  {
+    "id": 138,
+    "sparql": "PREFIX lila: <http://lila-erc.eu/ontologies/lila/>\nPREFIX ontolex: <http://www.w3.org/ns/lemon/ontolex#>\n\n# Return Sicilian lemmas with both alternating forms\nSELECT ?lemmaSiciliano ?lemmaSicilianoLabel ?wr1 ?wr2\nWHERE {\n# Filter for lemmas in the Sicilian dialect lemma bank\n?lemmaSiciliano dcterms:isPartOf <http://liita.it/data/id/DialettoSiciliano/lemma/LemmaBank>.\n# Get the label of the lemma\n?lemmaSiciliano rdfs:label ?lemmaSicilianoLabel.\n# Get two different written representations\n?lemmaSiciliano ontolex:writtenRep ?wr1, ?wr2 .\n# Ensure the two representations are different\nfilter( ?wr1 != ?wr2 ).\n# First form must contain \"ied\"\nFILTER regex(str(?wr1), \"ied\") .\n# Second form must contain \"ed\"\nFILTER regex(str(?wr2), \"ed\") .\n} group by ?lemmaSiciliano",
+    "nl": "Retrieves all Sicilian lemmas having written representations containing the alternation \"ed\"-\"ied\"",
+    "nl_variants": {
+      "generic": "Find all Sicilian words that have two spelling variants, one with 'ed' and another with 'ied'.",
+      "linguist": "List all Sicilian lemmas exhibiting orthographic alternation between 'ed' and 'ied' forms.",
+      "linked_data_expert": "Retrieve all lemmas from the DialettoSiciliano lemma bank that have at least two distinct ontolex:writtenRep values, one matching the pattern 'ied' and another matching 'ed'.",
+      "pedagogical": "This query identifies Sicilian dialect words that can be written in two different ways, specifically where one spelling contains the sequence 'ied' and another contains 'ed'. This helps document spelling variation in the Sicilian dialect. The query returns the lemma, its label, and both spelling variants."
+    },
+    "patterns": {
+      "MORPHO_REGEX": 1.0
+    }
+  },
+  {
+    "id": 139,
+    "sparql": "PREFIX lila: <http://lila-erc.eu/ontologies/lila/>\nPREFIX ontolex: <http://www.w3.org/ns/lemon/ontolex#>\nPREFIX dcterms: <http://purl.org/dc/terms/>\nPREFIX vartrans: <http://www.w3.org/ns/lemon/vartrans#>\n# Select the Sicilian lemma, its written forms (concatenated), the Italian lemma, and its written forms (concatenated)\nSELECT ?lemma (GROUP_CONCAT(DISTINCT ?wr ;separator=\", \") as ?wrs) ?liitaLemma (GROUP_CONCAT(DISTINCT ?wrIT ;separator=\", \") as ?wrsIT)\nWHERE {\n# Find lemmas that are part of the Sicilian dialect lemma bank\n?lemma dcterms:isPartOf <http://liita.it/data/id/DialettoSiciliano/lemma/LemmaBank>.\n# Get the written representation (spelling) of the Sicilian lemma\n?lemma ontolex:writtenRep ?wr .\n# Filter to include only nouns\n?lemma lila:hasPOS lila:noun .\n# Find the lexical entry that has this Sicilian lemma as its canonical form\n?le ontolex:canonicalForm ?lemma.\n# Find the Italian lexical entry that is translatable from the Sicilian entry\n?leITA vartrans:translatableAs ?le;\n# Get the canonical form (lemma) of the Italian translation\nontolex:canonicalForm ?liitaLemma.\n# Get the written representation (spelling) of the Italian lemma\n?liitaLemma ontolex:writtenRep ?wrIT.\n# Filter to include only Sicilian words ending with \"ìa\"\nFILTER regex(str(?wr), \"ìa$\") .\n} \n# Group results by Sicilian lemma and Italian lemma to aggregate multiple written forms\ngroup by ?lemma ?liitaLemma\n",
+    "nl": "Retrieves Sicilian common nouns ending with the abstract suffix \"ìa\" and show the correspoding Italian translations",
+    "nl_variants": {
+      "generic": "Find all Sicilian nouns ending in -ìa and their Italian translations.",
+      "linguist": "List all Sicilian nominal lemmas exhibiting the abstract derivational suffix -ìa along with their standard Italian correspondents.",
+      "linked_data_expert": "Retrieve all lila:noun instances from the DialettoSiciliano lemma bank whose ontolex:writtenRep matches 'ìa$', link them through vartrans:translatableAs to their Italian translation lemmas, and display both Sicilian and Italian written forms.",
+      "pedagogical": "This query finds Sicilian nouns ending with the suffix -ìa (which often forms abstract nouns, similar to English -y or -ness) and retrieves their corresponding Italian translations. It searches the Sicilian dialect database, filters for nouns with this ending, and connects them to their standard Italian equivalents."
+    },
+    "patterns": {
+      "MORPHO_REGEX": 1.0,
+      "TRANSLATION": 0.9,
+      "POS_FILTER": 0.7
+    }
   }
 ]

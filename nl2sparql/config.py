@@ -94,8 +94,8 @@ class NL2SPARQLConfig:
 # Available LLM providers and their default models
 AVAILABLE_PROVIDERS = {
     "openai": {
-        "default_model": "gpt-5.1",
-        "models": ["gpt-5.1","gpt-4o", "gpt-4o-mini", "gpt-4-turbo", "gpt-3.5-turbo"],
+        "default_model": "gpt-4.1-mini",
+        "models": ["gpt-5.2","gpt-4.1","gpt-4.1-mini","gpt-4.1-nano","gpt-4o", "gpt-4o-mini", "gpt-4-turbo", "gpt-3.5-turbo"],
     },
     "anthropic": {
         "default_model": "claude-sonnet-4-20250514",

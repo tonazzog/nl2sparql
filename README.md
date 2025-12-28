@@ -1,10 +1,10 @@
 # NL2SPARQL
 
-Natural Language to SPARQL translation for the [LiITA](https://lila-erc.eu/) (Linked Italian) linguistic knowledge base.
+Natural Language to SPARQL translation for the [LiITA](https://www.liita.it/) (Linking Italian) linguistic knowledge base.
 
 ## Overview
 
-NL2SPARQL translates natural language questions (in Italian or English) into SPARQL queries for querying the LiITA knowledge base. It uses a hybrid retrieval system combined with LLM-based query synthesis to generate accurate SPARQL queries.
+NL2SPARQL translates natural language questions (in Italian or English) into SPARQL queries for querying the LiITA knowledge base. It uses a hybrid retrieval system combined with LLM-based query synthesis to generate SPARQL queries.
 
 ### Features
 
@@ -22,7 +22,7 @@ NL2SPARQL translates natural language questions (in Italian or English) into SPA
 pip install nl2sparql
 
 # With specific LLM provider
-pip install nl2sparql[openai]      # For OpenAI (GPT-4, GPT-5.1)
+pip install nl2sparql[openai]      # For OpenAI (GPT-4.1, GPT-5.2)
 pip install nl2sparql[anthropic]   # For Anthropic (Claude)
 pip install nl2sparql[mistral]     # For Mistral AI
 pip install nl2sparql[gemini]      # For Google Gemini
@@ -44,38 +44,51 @@ pip install -e ".[dev,all]"
 
 Set your API key as an environment variable:
 
+**Linux / macOS:**
 ```bash
-# OpenAI
 export OPENAI_API_KEY="your-api-key"
-
-# Anthropic
 export ANTHROPIC_API_KEY="your-api-key"
-
-# Mistral
 export MISTRAL_API_KEY="your-api-key"
-
-# Google Gemini
 export GEMINI_API_KEY="your-api-key"
-
-# Ollama (no API key needed - runs locally)
 ```
+
+**Windows (Command Prompt):**
+```cmd
+set OPENAI_API_KEY=your-api-key
+set ANTHROPIC_API_KEY=your-api-key
+set MISTRAL_API_KEY=your-api-key
+set GEMINI_API_KEY=your-api-key
+```
+
+**Windows (PowerShell):**
+```powershell
+$env:OPENAI_API_KEY="your-api-key"
+$env:ANTHROPIC_API_KEY="your-api-key"
+$env:MISTRAL_API_KEY="your-api-key"
+$env:GEMINI_API_KEY="your-api-key"
+```
+
+Ollama runs locally and does not require an API key.
 
 ## Usage
 
 ### Command Line Interface
 
 ```bash
-# Basic translation
+# Basic translation (Italian)
 nl2sparql translate "Quali lemmi esprimono tristezza?"
 
+# Basic translation (English)
+nl2sparql translate "Find all words that express sadness"
+
 # Specify provider and model
-nl2sparql translate -p anthropic -m claude-sonnet-4-20250514 "Trova traduzioni siciliane di casa"
+nl2sparql translate -p anthropic "What are the hyponyms of vehicle?"
 
 # Save output to file
-nl2sparql translate "Definizione di amore" -o query.sparql
+nl2sparql translate "Definition of love" -o query.sparql
 
 # Verbose output with validation details
-nl2sparql translate -V "Quali sono gli iperonimi di cane?"
+nl2sparql translate -V "Find the Sicilian translations of 'house'"
 
 # Validate an existing query
 nl2sparql validate query.sparql
@@ -84,7 +97,7 @@ nl2sparql validate query.sparql
 nl2sparql list-models
 
 # Debug retrieval (see which examples are retrieved)
-nl2sparql retrieve "Trova verbi che esprimono gioia"
+nl2sparql retrieve "What are the parts of the human body?"
 ```
 
 ### Python API
@@ -94,7 +107,12 @@ nl2sparql retrieve "Trova verbi che esprimono gioia"
 ```python
 from nl2sparql import translate
 
+# Italian
 result = translate("Quali lemmi esprimono tristezza?")
+print(result.sparql)
+
+# English
+result = translate("Find all nouns that express joy")
 print(result.sparql)
 ```
 
@@ -106,14 +124,14 @@ from nl2sparql import NL2SPARQL
 # Initialize with specific provider
 translator = NL2SPARQL(
     provider="openai",
-    model="gpt-4o",
+    model="gpt-4.1",
     validate=True,
     fix_errors=True,
     max_retries=3
 )
 
-# Translate a question
-result = translator.translate("Trova le traduzioni siciliane di 'casa'")
+# Translate a question (Italian or English)
+result = translator.translate("Find the Sicilian translations of 'casa'")
 
 # Access results
 print(result.sparql)                    # The generated SPARQL query
