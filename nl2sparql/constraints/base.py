@@ -151,9 +151,13 @@ SERVICE <https://klab.ilc.cnr.it/graphdb-compl-it/> {
 - ALL semantic queries use SERVICE block
 - Variable is ?word (not ?lemma) in SERVICE
 - Use property paths: [ ontolex:writtenRep ?wr ]
-- Always use STR() in FILTER for string matching
+- For string matching, ALWAYS use: FILTER(STR(?var) = "value")
+- NEVER use direct literals like [ ontolex:writtenRep "word" ] - language tags cause issues
 - NO lila: properties inside SERVICE
 - NO GRAPH blocks inside SERVICE
+- NO references to variables bound outside SERVICE
+- Linking to LiITA (`?word ontolex:canonicalForm ?lemma`) must be OUTSIDE SERVICE
+- When using shared URI linking, NO additional FILTER needed inside SERVICE for matching
 
 ### CRITICAL: Linking CompL-it to LiIta
 
@@ -170,34 +174,55 @@ SERVICE <https://klab.ilc.cnr.it/graphdb-compl-it/> {
 ?wordMeronym ontolex:canonicalForm ?liitaLemma .
 ```
 
+### CRITICAL: Filter Order with SERVICE
+
+**Variables bound OUTSIDE SERVICE cannot be used in FILTER inside SERVICE!**
+
+When you need definitions + filtering (e.g., REGEX), you MUST:
+1. Start with SERVICE and put the FILTER inside
+2. Link to LiIta using the shared URI outside SERVICE
+
+```sparql
+# CORRECT: Filter INSIDE SERVICE, then link to LiIta
+SERVICE <https://klab.ilc.cnr.it/graphdb-compl-it/> {
+    ?word ontolex:sense [ skos:definition ?definition ] ;
+          ontolex:canonicalForm [ ontolex:writtenRep ?wr ] .
+    FILTER(REGEX(?wr, "zione$", "i"))  # Filter HERE, inside SERVICE
+}
+
+?word ontolex:canonicalForm ?liitaLemma .
+GRAPH <http://liita.it/data> {
+    ?liitaLemma lila:hasPOS lila:noun .  # LiIta-specific filter goes here
+}
+```
+
 ---
 
 ## COMBINING PATTERNS:
 
 ### LiIta + Emotion + Definition:
 ```sparql
-# LiIta lemma
-GRAPH <http://liita.it/data> {
-    ?lemma a lila:Lemma ;
-           lila:hasPOS lila:noun ;
-           ontolex:writtenRep ?wr .
+# Start with SERVICE to get words with definitions
+SERVICE <https://klab.ilc.cnr.it/graphdb-compl-it/> {
+    ?word ontolex:sense [ skos:definition ?definition ] ;
+          ontolex:canonicalForm [ ontolex:writtenRep ?wr ] .
 }
 
-# Emotion
+# Link to LiIta using shared URI
+?word ontolex:canonicalForm ?lemma .
+GRAPH <http://liita.it/data> {
+    ?lemma a lila:Lemma ;
+           lila:hasPOS lila:noun .
+}
+
+# Emotion (uses same ?lemma)
 ?emotionEntry ontolex:canonicalForm ?lemma .
 GRAPH <http://w3id.org/elita> {
     ?emotionEntry elita:HasEmotion ?emotion .
 }
-
-# Definition
-SERVICE <https://klab.ilc.cnr.it/graphdb-compl-it/> {
-    ?word ontolex:canonicalForm [ ontolex:writtenRep ?wrMatch ] ;
-          ontolex:sense [ skos:definition ?definition ] .
-    FILTER(STR(?wrMatch) = STR(?wr))
-}
 ```
 
-**Join Strategy**: Match on writtenRep strings using FILTER(STR(?x) = STR(?y))
+**Join Strategy**: Use shared URIs via ontolex:canonicalForm (no string matching needed)
 
 ---
 
@@ -237,9 +262,13 @@ For TRANSLATION queries:
 For SEMANTIC queries:
 - [ ] All sense/definition queries use SERVICE
 - [ ] Variable is ?word (not ?lemma) in SERVICE
-- [ ] Use STR() in FILTER
+- [ ] Use FILTER(STR(?var) = "value") for string matching
+- [ ] NEVER use direct literals like [ ontolex:writtenRep "word" ]
 - [ ] NO lila: properties in SERVICE
 - [ ] NO GRAPH inside SERVICE
+- [ ] NO variables bound outside SERVICE used inside SERVICE
+- [ ] Linking to LiITA (?word ontolex:canonicalForm ?lemma) MUST be OUTSIDE SERVICE
+- [ ] When using shared URI linking, NO additional FILTER needed for matching
 
 ---
 

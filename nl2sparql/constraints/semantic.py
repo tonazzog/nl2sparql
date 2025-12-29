@@ -190,29 +190,112 @@ SERVICE <https://klab.ilc.cnr.it/graphdb-compl-it/> {
 2. Use it outside SERVICE to access LiIta properties
 3. NO need for string matching with FILTER(STR(?x) = STR(?y))
 
+**CRITICAL**: The linking statement `?word ontolex:canonicalForm ?lemma` must be OUTSIDE the SERVICE block!
+
+```sparql
+# WRONG - linking inside SERVICE
+SERVICE <...> {
+    ?word ontolex:sense ?sense .
+    ?word ontolex:canonicalForm ?liitaLemma .  # WRONG: move this outside!
+}
+
+# CORRECT - linking outside SERVICE
+SERVICE <...> {
+    ?word ontolex:sense ?sense .
+}
+?word ontolex:canonicalForm ?liitaLemma .  # CORRECT: outside SERVICE
+```
+
+**CRITICAL**: When using shared URI linking, NO additional FILTER is needed!
+
+```sparql
+# WRONG - unnecessary filter referencing outside variable
+SERVICE <...> {
+    ?word ontolex:canonicalForm [ ontolex:writtenRep ?wr ] .
+    FILTER(STR(?wr) = ?italianWord)  # WRONG: ?italianWord is outside, and linking is via URI!
+}
+?word ontolex:canonicalForm ?lemma .
+
+# CORRECT - linking via URI is sufficient, no filter needed
+SERVICE <...> {
+    ?word ontolex:sense ?sense .
+}
+?word ontolex:canonicalForm ?lemma .  # The URI match handles the linking!
+```
+
+**CRITICAL**: Always use FILTER(STR()) for string matching, never direct literals!
+
+```sparql
+# WRONG - direct literal may fail due to language tags
+?word ontolex:canonicalForm [ ontolex:writtenRep "sentimento" ] .
+
+# CORRECT - use variable + FILTER with STR()
+?word ontolex:canonicalForm [ ontolex:writtenRep ?wr ] .
+FILTER(STR(?wr) = "sentimento")
+```
+
 ---
 
-## Pattern 7: String-based Linking (Alternative)
+## Pattern 7: Filtering + Definition (CRITICAL ORDER!)
 
-When you need to start from LiIta and find CompL-it data by word form:
+When you need to filter by text pattern (REGEX) AND get definitions, you MUST:
+1. Start with SERVICE and apply the filter INSIDE
+2. Use the shared URI to link to LiITA OUTSIDE SERVICE
+
+**WRONG - Variables from outside cannot be used in FILTER inside SERVICE:**
 ```sparql
-# Step 1: Get lemma from LiIta
+# WRONG - This will fail!
 GRAPH <http://liita.it/data> {
     ?lemma a lila:Lemma ;
            lila:hasPOS lila:noun ;
-           ontolex:writtenRep ?wrLiita .
+           ontolex:writtenRep ?wr .
+    FILTER(REGEX(STR(?wr), "zione$"))
 }
 
-# Step 2: Get semantic info from CompL-it by matching string
 SERVICE <https://klab.ilc.cnr.it/graphdb-compl-it/> {
-    ?word ontolex:canonicalForm [ ontolex:writtenRep ?wrComplit ] .
-    FILTER(STR(?wrComplit) = STR(?wrLiita))
-
-    ?word ontolex:sense [ skos:definition ?definition ] .
+    ?word ontolex:canonicalForm [ ontolex:writtenRep ?wrComplit ] ;
+          ontolex:sense [ skos:definition ?definition ] .
+    FILTER(STR(?wrComplit) = STR(?wr))  # ERROR: ?wr is not accessible here!
 }
 ```
 
-**Use this pattern when**: You start from LiIta lemmas and need to find corresponding CompL-it entries.
+**CORRECT - Filter inside SERVICE, then link to LiITA:**
+```sparql
+# First: Query CompL-it with filter INSIDE the SERVICE
+SERVICE <https://klab.ilc.cnr.it/graphdb-compl-it/> {
+    ?word ontolex:sense ?sense .
+    ?sense skos:definition ?definition .
+    ?word ontolex:canonicalForm ?lemma .
+    ?lemma ontolex:writtenRep ?writtenRep .
+    FILTER(REGEX(?writtenRep, "zione$", "i"))
+}
+
+# Then: Use shared URI to access LiITA
+?word ontolex:canonicalForm ?liitaLemma .
+GRAPH <http://liita.it/data> {
+    ?liitaLemma ontolex:writtenRep ?italianWord ;
+                lila:hasPOS lila:noun .
+}
+```
+
+**KEY RULES:**
+1. FILTER with REGEX must be INSIDE the SERVICE where the data lives
+2. Variables bound outside SERVICE CANNOT be used in FILTER inside SERVICE
+3. Use the shared URI (?word) to link SERVICE results to LiITA
+4. LiITA-specific filters (like lila:hasPOS) go in GRAPH block AFTER SERVICE
+
+---
+
+## Pattern 8: When to Use Which Join Strategy
+
+| Scenario | Strategy |
+|----------|----------|
+| Need definition + filter by pattern | Start with SERVICE, filter inside, link via URI |
+| Need definition for specific word | Start with SERVICE, filter by exact word |
+| Need semantic relations + LiITA data | Start with SERVICE, link via URI |
+| Need LiITA-only data (no definition) | Just use GRAPH, no SERVICE needed |
+
+**The general rule**: If you need CompL-it data (definitions, senses, semantic relations) AND any filtering, the filter should happen INSIDE the SERVICE block.
 
 ---
 
