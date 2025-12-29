@@ -19,17 +19,17 @@ NL2SPARQL translates natural language questions (in Italian or English) into SPA
 
 ```bash
 # Basic installation
-pip install nl2sparql
+pip install liita-nl2sparql
 
 # With specific LLM provider
-pip install nl2sparql[openai]      # For OpenAI (GPT-4.1, GPT-5.2)
-pip install nl2sparql[anthropic]   # For Anthropic (Claude)
-pip install nl2sparql[mistral]     # For Mistral AI
-pip install nl2sparql[gemini]      # For Google Gemini
-pip install nl2sparql[ollama]      # For local Ollama models
+pip install liita-nl2sparql[openai]      # For OpenAI
+pip install liita-nl2sparql[anthropic]   # For Anthropic (Claude)
+pip install liita-nl2sparql[mistral]     # For Mistral AI
+pip install liita-nl2sparql[gemini]      # For Google Gemini
+pip install liita-nl2sparql[ollama]      # For local Ollama models
 
 # All providers
-pip install nl2sparql[all]
+pip install liita-nl2sparql[all]
 ```
 
 ### Development Installation
@@ -232,6 +232,3 @@ The system understands LiITA's multi-source architecture:
 
 MIT License - see [LICENSE](LICENSE) for details.
 
-## Acknowledgments
-
-This project was developed as part of research on the [LiLA - Linking Latin](https://lila-erc.eu/) project, funded by the European Research Council (ERC).
