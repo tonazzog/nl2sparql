@@ -199,4 +199,19 @@ This is more efficient than joining on string values and was incorporated into t
 
 **Compositional queries**: Complex multi-step queries like "find all venomous animals" require reasoning that few-shot learning doesn't always capture. More sophisticated decomposition strategies could help.
 
-**Evaluation**: We haven't systematically measured accuracy across query types. A benchmark with held-out examples would help identify weaknesses.
+**Execution accuracy**: The current evaluation measures syntax validity and component matching, but not execution accuracy (comparing result sets). Adding ground truth result comparison would provide stronger validation.
+
+## Evaluation Framework
+
+The system includes an evaluation framework with a structured test dataset covering all patterns and combinations. See [evaluation.md](evaluation.md) for details.
+
+Key metrics:
+- Syntax validity rate
+- Endpoint execution success
+- Component matching score (expected SPARQL patterns present)
+- Pattern detection accuracy
+
+Run evaluation via CLI:
+```bash
+nl2sparql evaluate -p openai -o report.json
+```

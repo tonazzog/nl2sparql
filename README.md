@@ -70,6 +70,10 @@ $env:GEMINI_API_KEY="your-api-key"
 
 Ollama runs locally and does not require an API key.
 
+## Quick Start
+
+For an interactive tutorial, see the [Quick Start Notebook](notebooks/quickstart.ipynb).
+
 ## Usage
 
 ### Command Line Interface
@@ -176,6 +180,8 @@ for ex in result.retrieved_examples:
 
 ```
 nl2sparql/
+├── notebooks/
+│   └── quickstart.ipynb     # Interactive tutorial
 ├── __init__.py              # Public API
 ├── cli.py                   # Command-line interface
 ├── config.py                # Configuration management
@@ -205,8 +211,12 @@ nl2sparql/
 │   ├── syntax.py            # rdflib syntax validation
 │   ├── endpoint.py          # SPARQL endpoint validation
 │   └── semantic.py          # Constraint-based validation
+├── evaluation/              # Evaluation framework
+│   ├── evaluate.py          # Test runner and metrics
+│   └── batch_evaluate.py    # Multi-model comparison
 └── data/
-    └── sparql_queries_final.json  # Training dataset
+    ├── sparql_queries_final.json  # Training dataset
+    └── test_dataset.json          # Evaluation test cases
 ```
 
 ## LiITA Knowledge Base Architecture
@@ -222,11 +232,100 @@ The system understands LiITA's multi-source architecture:
 
 | Provider | Default Model | Other Models |
 |----------|--------------|--------------|
-| OpenAI | gpt-5.1 | gpt-4o, gpt-4o-mini, gpt-4-turbo |
+| OpenAI | gpt-4.1-mini | gpt-5.2, gpt-4.1, gpt-4.1-nano, gpt-4o,  gpt-4o-mini,  gpt-4-turbo,  gpt-3.5-turbo |
 | Anthropic | claude-sonnet-4-20250514 | claude-opus-4-20250514, claude-3-5-haiku-20241022 |
 | Mistral | mistral-large-latest | mistral-medium-latest, mistral-small-latest |
 | Gemini | gemini-pro | gemini-pro-vision |
 | Ollama | llama3 | mistral, codellama, phi3 |
+
+## Evaluation
+
+The package includes a test framework for systematic evaluation of single models and batch comparison of multiple models.
+
+### Single Model Evaluation
+
+```bash
+# Full evaluation with default settings
+nl2sparql evaluate
+
+# Evaluate with specific provider
+nl2sparql evaluate -p anthropic
+
+# Test only single-pattern queries
+nl2sparql evaluate -c single_pattern
+
+# Test specific patterns
+nl2sparql evaluate --pattern EMOTION_LEXICON --pattern TRANSLATION
+
+# Save results to file (includes generated SPARQL queries)
+nl2sparql evaluate -o report.json
+```
+
+### Batch Model Comparison
+
+Compare multiple LLM providers and models:
+
+```bash
+# Quick comparison (GPT-4o-mini vs Claude 3.5 Haiku)
+nl2sparql batch-evaluate -p quick
+
+# Compare all OpenAI models
+nl2sparql batch-evaluate -p openai -o ./reports
+
+# Compare default models from all providers
+nl2sparql batch-evaluate -p all_defaults -c comparison.json
+
+# Custom model selection
+nl2sparql batch-evaluate --provider openai --provider anthropic
+```
+
+Available presets:
+- `quick` - Fast comparison with smaller models
+- `openai` - All OpenAI models
+- `anthropic` - All Anthropic models
+- `mistral` - All Mistral models
+- `all_defaults` - Default model from each provider
+
+### Python API
+
+```python
+from nl2sparql import NL2SPARQL
+from nl2sparql.evaluation import (
+    evaluate_dataset,
+    print_report,
+    save_report,
+    # Batch evaluation
+    ModelConfig,
+    run_batch_evaluation,
+    create_comparison_report,
+    print_comparison,
+    PRESETS,
+)
+
+# Single model evaluation
+translator = NL2SPARQL(provider="openai")
+report = evaluate_dataset(translator, language="it")
+print_report(report)
+save_report(report, "report.json")  # Includes generated SPARQL queries
+
+# Batch model comparison
+configs = [
+    ModelConfig("openai", "gpt-4o", "GPT-4o"),
+    ModelConfig("anthropic", "claude-sonnet-4-20250514", "Claude Sonnet"),
+]
+results = run_batch_evaluation(configs, output_dir="./reports")
+comparison = create_comparison_report(results, "comparison.json")
+print_comparison(comparison)
+```
+
+### Metrics
+
+- **Syntax validity**: Percentage of queries that parse correctly
+- **Endpoint success**: Percentage of queries that execute without errors
+- **Component score**: Percentage of expected SPARQL components present
+- **Pattern detection accuracy**: How well the system identifies query types
+
+See [docs/evaluation.md](docs/evaluation.md) for detailed documentation.
 
 ## License
 

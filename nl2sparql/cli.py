@@ -309,5 +309,225 @@ def retrieve_command(question: str, top_k: int):
         click.echo()
 
 
+@main.command("evaluate")
+@click.option(
+    "--provider", "-p",
+    type=click.Choice(list(AVAILABLE_PROVIDERS.keys())),
+    default="openai",
+    help="LLM provider to use.",
+)
+@click.option(
+    "--model", "-m",
+    type=str,
+    default=None,
+    help="Model name.",
+)
+@click.option(
+    "--language", "-l",
+    type=click.Choice(["it", "en"]),
+    default="it",
+    help="Test language (Italian or English).",
+)
+@click.option(
+    "--category", "-c",
+    type=click.Choice(["single_pattern", "combination_2", "combination_3", "complex"]),
+    multiple=True,
+    default=None,
+    help="Filter by test category (can specify multiple).",
+)
+@click.option(
+    "--pattern",
+    type=str,
+    multiple=True,
+    default=None,
+    help="Filter by pattern (can specify multiple).",
+)
+@click.option(
+    "--no-endpoint",
+    is_flag=True,
+    help="Skip endpoint validation.",
+)
+@click.option(
+    "--output", "-o",
+    type=click.Path(),
+    default=None,
+    help="Save report to JSON file.",
+)
+def evaluate_command(
+    provider: str,
+    model: Optional[str],
+    language: str,
+    category: tuple,
+    pattern: tuple,
+    no_endpoint: bool,
+    output: Optional[str],
+):
+    """
+    Evaluate the system on the test dataset.
+
+    \b
+    Examples:
+        nl2sparql evaluate
+        nl2sparql evaluate -p anthropic -l en
+        nl2sparql evaluate -c single_pattern -c combination_2
+        nl2sparql evaluate --pattern EMOTION_LEXICON --pattern TRANSLATION
+        nl2sparql evaluate -o report.json
+    """
+    from .generation.synthesizer import NL2SPARQL
+    from .evaluation import evaluate_dataset, print_report, save_report
+
+    click.echo("NL2SPARQL Evaluation")
+    click.echo(f"Provider: {provider}, Model: {model or 'default'}")
+    click.echo(f"Language: {language}")
+    click.echo()
+
+    # Initialize translator
+    translator = NL2SPARQL(
+        provider=provider,
+        model=model,
+        validate=True,
+        fix_errors=True,
+    )
+
+    # Run evaluation
+    categories = list(category) if category else None
+    patterns = list(pattern) if pattern else None
+
+    click.echo("Running evaluation...")
+    report = evaluate_dataset(
+        translator=translator,
+        language=language,
+        validate_endpoint=not no_endpoint,
+        categories=categories,
+        patterns=patterns,
+    )
+
+    # Print report
+    print_report(report)
+
+    # Save if requested
+    if output:
+        save_report(report, output)
+        click.echo(f"\nReport saved to: {output}")
+
+
+@main.command("batch-evaluate")
+@click.option(
+    "--preset", "-p",
+    type=click.Choice(["openai", "anthropic", "mistral", "all_defaults", "quick"]),
+    default=None,
+    help="Use a preset model configuration.",
+)
+@click.option(
+    "--provider",
+    multiple=True,
+    help="Provider to evaluate (can specify multiple).",
+)
+@click.option(
+    "--model",
+    multiple=True,
+    help="Model to evaluate (pairs with --provider).",
+)
+@click.option(
+    "--language", "-l",
+    type=click.Choice(["it", "en"]),
+    default="it",
+    help="Test language.",
+)
+@click.option(
+    "--no-endpoint",
+    is_flag=True,
+    help="Skip endpoint validation.",
+)
+@click.option(
+    "--output-dir", "-o",
+    type=click.Path(),
+    default=None,
+    help="Directory to save individual reports.",
+)
+@click.option(
+    "--comparison", "-c",
+    type=click.Path(),
+    default=None,
+    help="Path to save comparison report.",
+)
+def batch_evaluate_command(
+    preset: Optional[str],
+    provider: tuple,
+    model: tuple,
+    language: str,
+    no_endpoint: bool,
+    output_dir: Optional[str],
+    comparison: Optional[str],
+):
+    """
+    Evaluate multiple LLM models and compare results.
+
+    \\b
+    Examples:
+        nl2sparql batch-evaluate -p quick
+        nl2sparql batch-evaluate -p openai -o ./reports
+        nl2sparql batch-evaluate --provider openai --provider anthropic
+        nl2sparql batch-evaluate -p all_defaults -c comparison.json
+
+    \\b
+    Available presets:
+        quick         - GPT-4o-mini + Claude 3.5 Haiku (fast comparison)
+        openai        - All OpenAI models (GPT-5.2, GPT-4.1, GPT-4o)
+        anthropic     - All Anthropic models (Claude Sonnet 4, Claude 3.5 Haiku)
+        mistral       - All Mistral models (Large, Small)
+        all_defaults  - Default model from each provider
+    """
+    from .evaluation import (
+        ModelConfig,
+        run_batch_evaluation,
+        create_comparison_report,
+        print_comparison,
+        PRESETS,
+    )
+
+    # Build config list
+    if preset:
+        configs = PRESETS[preset]
+        click.echo(f"Using preset: {preset} ({len(configs)} models)")
+    elif provider:
+        models = list(model) if model else [None] * len(provider)
+        if len(models) < len(provider):
+            models.extend([None] * (len(provider) - len(models)))
+        configs = [
+            ModelConfig(p, m)
+            for p, m in zip(provider, models)
+        ]
+        click.echo(f"Evaluating {len(configs)} custom configuration(s)")
+    else:
+        click.secho("Error: Specify --preset or --provider", fg="red", err=True)
+        sys.exit(1)
+
+    click.echo(f"Language: {language}")
+    click.echo()
+
+    # Run batch evaluation
+    results = run_batch_evaluation(
+        configs=configs,
+        language=language,
+        validate_endpoint=not no_endpoint,
+        output_dir=output_dir,
+        verbose=True,
+    )
+
+    # Create and print comparison
+    comp = create_comparison_report(
+        results,
+        output_path=comparison,
+    )
+    print_comparison(comp)
+
+    if comparison:
+        click.echo(f"\nComparison saved to: {comparison}")
+
+    if output_dir:
+        click.echo(f"Individual reports saved to: {output_dir}")
+
+
 if __name__ == "__main__":
     main()

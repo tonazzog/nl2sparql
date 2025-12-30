@@ -26,7 +26,7 @@ class LLMConfig:
     """Configuration for LLM providers."""
 
     provider: str = "openai"
-    model: str = "gpt-4o"
+    model: str = "gpt-4o-mini"
     temperature: float = 0.0
     max_tokens: int = 2048
     api_key: Optional[str] = None
