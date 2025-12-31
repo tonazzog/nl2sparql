@@ -190,6 +190,75 @@ WHERE {
 
 ---
 
+### MULTI-DIALECT TRANSLATIONS (CRITICAL!):
+
+When querying translations to MULTIPLE dialects, use DIFFERENT Italian lexical entry variables!
+
+**WRONG - Same variable for both dialects (returns empty results):**
+```sparql
+?italianLexEntry ontolex:canonicalForm ?liitaLemma .
+?italianLexEntry vartrans:translatableAs ?sicilianLexEntry .   # Sicilian
+?italianLexEntry vartrans:translatableAs ?parmigianoLexEntry . # Parmigiano - WRONG!
+```
+
+**CORRECT - Different variables for each dialect:**
+```sparql
+# Sicilian translation (via one Italian lexical entry)
+?italianSicilianLexEntry ontolex:canonicalForm ?liitaLemma .
+?italianSicilianLexEntry vartrans:translatableAs ?sicilianLexEntry .
+?sicilianLexEntry ontolex:canonicalForm ?sicilianLemma .
+?sicilianLemma dcterms:isPartOf <http://liita.it/data/id/DialettoSiciliano/lemma/LemmaBank> ;
+               ontolex:writtenRep ?sicilianWord .
+
+# Parmigiano translation (via DIFFERENT Italian lexical entry!)
+?italianParmigianoLexEntry ontolex:canonicalForm ?liitaLemma .
+?italianParmigianoLexEntry vartrans:translatableAs ?parmigianoLexEntry .
+?parmigianoLexEntry ontolex:canonicalForm ?parmigianoLemma .
+?parmigianoLemma dcterms:isPartOf <http://liita.it/data/id/DialettoParmigiano/lemma/LemmaBank> ;
+                 ontolex:writtenRep ?parmigianoWord .
+```
+
+**Complete example - Italian adjectives with Sicilian + Parmigiano + definition:**
+```sparql
+SELECT DISTINCT ?italianWord ?definition ?sicilianWord ?parmigianoWord
+WHERE {
+  # 1. Get Italian adjectives from CompL-it with definition
+  SERVICE <https://klab.ilc.cnr.it/graphdb-compl-it/> {
+    ?word ontolex:canonicalForm [ ontolex:writtenRep ?italianWord ] ;
+          ontolex:sense [ skos:definition ?definition ] .
+    FILTER(REGEX(STR(?italianWord), "oso$", "i"))
+  }
+
+  # 2. Link to LiITA lemma
+  ?word ontolex:canonicalForm ?liitaLemma .
+  GRAPH <http://liita.it/data> {
+    ?liitaLemma a lila:Lemma ;
+                lila:hasPOS lila:adjective .
+  }
+
+  # 3. Sicilian translation (via Italian lexical entry for Sicilian)
+  ?italianSicilianLexEntry ontolex:canonicalForm ?liitaLemma .
+  ?italianSicilianLexEntry vartrans:translatableAs ?sicilianLexEntry .
+  ?sicilianLexEntry ontolex:canonicalForm ?sicilianLemma .
+  ?sicilianLemma dcterms:isPartOf <http://liita.it/data/id/DialettoSiciliano/lemma/LemmaBank> ;
+                 ontolex:writtenRep ?sicilianWord .
+
+  # 4. Parmigiano translation (via DIFFERENT Italian lexical entry!)
+  ?italianParmigianoLexEntry ontolex:canonicalForm ?liitaLemma .
+  ?italianParmigianoLexEntry vartrans:translatableAs ?parmigianoLexEntry .
+  ?parmigianoLexEntry ontolex:canonicalForm ?parmigianoLemma .
+  ?parmigianoLemma dcterms:isPartOf <http://liita.it/data/id/DialettoParmigiano/lemma/LemmaBank> ;
+                   ontolex:writtenRep ?parmigianoWord .
+}
+```
+
+**KEY INSIGHT:**
+- The SAME Italian lemma can have MULTIPLE lexical entries
+- Each lexical entry may link to a DIFFERENT dialect
+- Use descriptive variable names: `?italianSicilianLexEntry`, `?italianParmigianoLexEntry`
+
+---
+
 ### Translation + Sentiment/Emotion:
 ```sparql
 # Italian lemma as join point
@@ -223,12 +292,15 @@ WHERE {
 - [ ] **Translation direction**: Italian → Dialect (NEVER dialect → Italian)
   - CORRECT: `?italianEntry vartrans:translatableAs ?dialectEntry`
   - WRONG: `?dialectEntry vartrans:translatableAs ?italianEntry`
+- [ ] **Multi-dialect queries**: Use DIFFERENT Italian entry variables for each dialect!
+  - WRONG: Same `?italianLexEntry` for both Sicilian and Parmigiano
+  - CORRECT: `?italianSicilianLexEntry` and `?italianParmigianoLexEntry`
 - [ ] Translation uses `vartrans:translatableAs` on lexical entries, NOT lemmas
 - [ ] `ontolex:canonicalForm` connects lexical entries to lemmas
 - [ ] `ontolex:writtenRep` accessed on lemmas
 - [ ] Morphological properties (POS, gender) queried on lemmas
-- [ ] **No GRAPH clauses needed** for basic translation queries
-- [ ] For dialect-specific aggregations (e.g., POS distribution), use dialect-specific GRAPH
+- [ ] **No GRAPH clauses needed** for dialect lemma queries (use dcterms:isPartOf)
+- [ ] Identify dialect lemmas with `dcterms:isPartOf <...LemmaBank>`
 """
 
 
