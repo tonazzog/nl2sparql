@@ -102,18 +102,16 @@ WHERE {
 
 ---
 
-### Dialect Identification (CRITICAL - Different per Dialect!):
+### Dialect Identification (Use dcterms:isPartOf for ALL dialects!):
 
 **Sicilian Dialect:**
 ```sparql
-# Use dcterms:isPartOf with LemmaBank URI
 ?sicilianLemma dcterms:isPartOf <http://liita.it/data/id/DialettoSiciliano/lemma/LemmaBank> .
 ```
 
 **Parmigiano Dialect:**
 ```sparql
-# Use INVERSE lime:entry with Lexicon URI
-?parmigianoLexEntry ^lime:entry <http://liita.it/data/id/LexicalReources/DialettoParmigiano/Lexicon> .
+?parmigianoLemma dcterms:isPartOf <http://liita.it/data/id/DialettoParmigiano/lemma/LemmaBank> .
 ```
 
 **Italian (Standard):**
@@ -121,63 +119,73 @@ WHERE {
 ?italianLemma dcterms:isPartOf <http://liita.it/data/id/lemma/LemmaBank> .
 ```
 
+**Alternative for Parmigiano (via Lexicon - use for lexical entries):**
+```sparql
+?parmigianoLexEntry ^lime:entry <http://liita.it/data/id/LexicalReources/DialettoParmigiano/Lexicon> .
+```
+
 **CRITICAL:**
-- Sicilian -> `dcterms:isPartOf` on LEMMA + LemmaBank URI
-- Parmigiano -> `^lime:entry` on LEXICAL ENTRY + Lexicon URI
-- Don't mix these patterns!
+- Use `dcterms:isPartOf` with LemmaBank URI for identifying LEMMAS
+- Use `^lime:entry` with Lexicon URI for identifying LEXICAL ENTRIES (Parmigiano only)
+- **Do NOT use GRAPH clauses** for dialect queries!
 
 ---
 
-### DIALECT-SPECIFIC GRAPHS (CRITICAL!):
+### QUERYING DIALECT LEMMAS (NO GRAPH NEEDED!):
 
-Each dialect has its OWN NAMED GRAPH with its own lemmas:
+**CRITICAL: Do NOT use GRAPH clauses for dialect queries!**
+Use the identification patterns below instead.
 
-**Main Italian:** `GRAPH <http://liita.it/data>`
-**Parmigiano:** `GRAPH <http://liita.it/data/id/DialettoParmigiano>`
-**Sicilian:** `GRAPH <http://liita.it/data/id/DialettoSiciliano/>`
-
-**IMPORTANT DISTINCTION:**
-
-1. **"Italian words that translate to Parmigiano"** = query main graph + join with Parmigiano lexicon
-2. **"Parmigiano words/lemmas"** = query Parmigiano graph DIRECTLY
-
-**Example: POS distribution IN Parmigiano (Parmigiano lemmas):**
+**Sicilian lemmas - use dcterms:isPartOf:**
 ```sparql
-# CORRECT - Query Parmigiano graph directly
-SELECT ?pos (COUNT(DISTINCT ?lemma) AS ?count)
+SELECT ?lemma ?wr
 WHERE {
-  GRAPH <http://liita.it/data/id/DialettoParmigiano> {
-    ?lemma a lila:Lemma ;
-           lila:hasPOS ?pos .
-  }
+  ?lemma dcterms:isPartOf <http://liita.it/data/id/DialettoSiciliano/lemma/LemmaBank> .
+  ?lemma ontolex:writtenRep ?wr .
 }
-GROUP BY ?pos
 ```
 
-**WRONG approach (gives Italian lemmas with Parmigiano translations):**
+**Parmigiano lemmas - use dcterms:isPartOf:**
 ```sparql
-# WRONG - This queries Italian lemmas from main graph!
-SELECT ?pos (COUNT(DISTINCT ?lemma) AS ?count)
+SELECT ?lemma ?wr
 WHERE {
-  GRAPH <http://liita.it/data> {        # <-- WRONG GRAPH for Parmigiano lemmas!
-    ?lemma a lila:Lemma ;
-           lila:hasPOS ?pos .
-  }
-  ?lexEntry ontolex:canonicalForm ?lemma ;
-            ^lime:entry <...Parmigiano/Lexicon> .
+  ?lemma dcterms:isPartOf <http://liita.it/data/id/DialettoParmigiano/lemma/LemmaBank> .
+  ?lemma ontolex:writtenRep ?wr .
 }
-GROUP BY ?pos
 ```
 
-**Alternative - Get POS from Parmigiano forms:**
+**POS distribution in Sicilian:**
 ```sparql
-SELECT ?pos (COUNT(?parmigianoLexEntry) AS ?count)
+SELECT ?pos (COUNT(DISTINCT ?lemma) AS ?count)
 WHERE {
-  ?parmigianoLexEntry ^lime:entry <http://liita.it/data/id/LexicalReources/DialettoParmigiano/Lexicon> .
-  ?parmigianoLexEntry ontolex:canonicalForm ?parmigianoForm .
-  ?parmigianoForm lila:hasPOS ?pos .
+  ?lemma dcterms:isPartOf <http://liita.it/data/id/DialettoSiciliano/lemma/LemmaBank> .
+  ?lemma lila:hasPOS ?pos .
 }
 GROUP BY ?pos
+ORDER BY DESC(?count)
+```
+
+**POS distribution in Parmigiano:**
+```sparql
+SELECT ?pos (COUNT(DISTINCT ?lemma) AS ?count)
+WHERE {
+  ?lemma dcterms:isPartOf <http://liita.it/data/id/DialettoParmigiano/lemma/LemmaBank> .
+  ?lemma lila:hasPOS ?pos .
+}
+GROUP BY ?pos
+ORDER BY DESC(?count)
+```
+
+**Sicilian lemmas starting with 'd' or 'r':**
+```sparql
+SELECT ?lemma ?wr1 ?wr2
+WHERE {
+  ?lemma dcterms:isPartOf <http://liita.it/data/id/DialettoSiciliano/lemma/LemmaBank> .
+  ?lemma ontolex:writtenRep ?wr1, ?wr2 .
+  FILTER(?wr1 != ?wr2)
+  FILTER(regex(str(?wr1), "^d"))
+  FILTER(regex(str(?wr2), "^r"))
+}
 ```
 
 ---
@@ -306,29 +314,27 @@ def validate_translation_query(sparql_query: str) -> tuple[bool, list[str]]:
 
 
 # Dialect resource constants
+# NOTE: Do NOT use GRAPH clauses - use dcterms:isPartOf with LemmaBank instead
 DIALECT_RESOURCES = {
     "sicilian": {
-        "graph": "<http://liita.it/data/id/DialettoSiciliano/>",
         "lemma_bank": "<http://liita.it/data/id/DialettoSiciliano/lemma/LemmaBank>",
         "property_pattern": "dcterms:isPartOf",
         "applies_to": "lemma",
         "example": "?sicilianLemma dcterms:isPartOf <http://liita.it/data/id/DialettoSiciliano/lemma/LemmaBank>",
-        "direct_query": "GRAPH <http://liita.it/data/id/DialettoSiciliano/> { ?lemma a lila:Lemma }",
     },
     "parmigiano": {
-        "graph": "<http://liita.it/data/id/DialettoParmigiano>",
+        "lemma_bank": "<http://liita.it/data/id/DialettoParmigiano/lemma/LemmaBank>",
         "lexicon": "<http://liita.it/data/id/LexicalReources/DialettoParmigiano/Lexicon>",
-        "property_pattern": "^lime:entry",
-        "applies_to": "lexical entry",
-        "example": "?parmigianoLexEntry ^lime:entry <http://liita.it/data/id/LexicalReources/DialettoParmigiano/Lexicon>",
-        "direct_query": "GRAPH <http://liita.it/data/id/DialettoParmigiano> { ?lemma a lila:Lemma }",
+        "property_pattern": "dcterms:isPartOf",
+        "applies_to": "lemma",
+        "example": "?parmigianoLemma dcterms:isPartOf <http://liita.it/data/id/DialettoParmigiano/lemma/LemmaBank>",
+        "alt_pattern": "^lime:entry",
+        "alt_example": "?parmigianoLexEntry ^lime:entry <http://liita.it/data/id/LexicalReources/DialettoParmigiano/Lexicon>",
     },
     "italian": {
-        "graph": "<http://liita.it/data>",
         "lemma_bank": "<http://liita.it/data/id/lemma/LemmaBank>",
         "property_pattern": "dcterms:isPartOf",
         "applies_to": "lemma",
         "example": "?italianLemma dcterms:isPartOf <http://liita.it/data/id/lemma/LemmaBank>",
-        "direct_query": "GRAPH <http://liita.it/data> { ?lemma a lila:Lemma }",
     },
 }
