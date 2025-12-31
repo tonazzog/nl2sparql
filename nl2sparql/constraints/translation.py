@@ -1,49 +1,103 @@
 """Translation query constraints for LiIta SPARQL synthesis."""
 
+import re
+
 TRANSLATION_MANDATORY_PATTERNS = """
 ## CRITICAL TRANSLATION QUERY CONSTRAINTS
 
 Translation queries have specific structural requirements based on OntoLex-Lemon vocabulary.
 
-### CORE PRINCIPLE: Translations Link Lexical Entries, NOT Lemmas
+### CORE PRINCIPLES:
 
-**CORRECT PATTERN:**
+1. **Translations link LEXICAL ENTRIES, not lemmas directly**
+2. **Direction is ALWAYS Italian → Dialect** (never dialect → Italian)
+3. **No GRAPH clauses needed** for basic translation queries
+
+---
+
+### TRANSLATION DIRECTION (CRITICAL!):
+
+**CORRECT - Italian entry translates TO dialect entry:**
 ```sparql
-# Get lexical entry with Italian lemma
-?italianLexEntry ontolex:canonicalForm ?italianLemma .
-
-# Translation at LEXICAL ENTRY level
 ?italianLexEntry vartrans:translatableAs ?dialectLexEntry .
-
-# Get dialect lemma from dialect lexical entry
-?dialectLexEntry ontolex:canonicalForm ?dialectLemma .
 ```
 
-**WRONG PATTERN:**
+**WRONG - This direction does NOT exist in the data:**
 ```sparql
-# WRONG - Translation is NOT directly on lemmas
-?italianLemma vartrans:translatableAs ?dialectLemma .
+?dialectLexEntry vartrans:translatableAs ?italianLexEntry .  # WRONG!
 ```
 
 ---
 
-### Basic Translation Structure:
+### Pattern 1: Find DIALECT words and their ITALIAN translations
+
+Use this when: "Find Parmigiano/Sicilian words that... and show Italian translation"
+
+```sparql
+# Step 1: Dialect lemma (no GRAPH needed!)
+?dialectLemma a lila:Lemma ;
+              ontolex:writtenRep ?dialectWr .
+
+# Step 2: Dialect lexical entry
+?dialectLexEntry ontolex:canonicalForm ?dialectLemma .
+
+# Step 3: Italian entry that translates TO this dialect entry
+?italianLexEntry vartrans:translatableAs ?dialectLexEntry ;
+                 ontolex:canonicalForm ?italianLemma .
+
+# Step 4: Italian word
+?italianLemma ontolex:writtenRep ?italianWr .
+```
+
+**Real example - Parmigiano verbs ending with "or" and Italian translation:**
+```sparql
+SELECT ?lemma ?wr ?liitaLemma ?wrIT
+WHERE {
+  ?lemma a lila:Lemma ;
+         ontolex:writtenRep ?wr ;
+         lila:hasPOS lila:verb .
+  ?le ontolex:canonicalForm ?lemma .
+  ?leITA vartrans:translatableAs ?le ;
+         ontolex:canonicalForm ?liitaLemma .
+  ?liitaLemma ontolex:writtenRep ?wrIT .
+  FILTER regex(str(?wr), "or$") .
+}
+```
+
+---
+
+### Pattern 2: Find ITALIAN words and their DIALECT translations
+
+Use this when: "Find Italian words that... and show Parmigiano/Sicilian translation"
+
 ```sparql
 # Step 1: Italian lemma
 ?italianLemma a lila:Lemma ;
-              ontolex:writtenRep ?italianWord .
+              ontolex:writtenRep ?italianWr .
 
-# Step 2: Get lexical entry with this lemma as canonical form
+# Step 2: Italian lexical entry
 ?italianLexEntry ontolex:canonicalForm ?italianLemma .
 
-# Step 3: Translation link (at lexical entry level!)
+# Step 3: Translation link (Italian → Dialect)
 ?italianLexEntry vartrans:translatableAs ?dialectLexEntry .
 
-# Step 4: Get dialect lemma from dialect lexical entry
+# Step 4: Dialect lemma and word
 ?dialectLexEntry ontolex:canonicalForm ?dialectLemma .
+?dialectLemma ontolex:writtenRep ?dialectWr .
+```
 
-# Step 5: Get dialect word
-?dialectLemma ontolex:writtenRep ?dialectWord .
+**Real example - Italian "donna" and Parmigiano translations:**
+```sparql
+SELECT ?wrsIT ?wrs
+WHERE {
+  ?lemma a lila:Lemma ;
+         ontolex:writtenRep ?wr .
+  ?le ontolex:canonicalForm ?lemma .
+  ?leITA vartrans:translatableAs ?le ;
+         ontolex:canonicalForm ?liitaLemma .
+  ?liitaLemma ontolex:writtenRep ?wrIT .
+  FILTER regex(str(?wrIT), "^donna$")
+}
 ```
 
 ---
@@ -158,13 +212,15 @@ GROUP BY ?pos
 
 ### VALIDATION CHECKLIST:
 
-- [ ] Translation uses `vartrans:translatableAs` on lexical entries
-- [ ] NOT using `vartrans:translatableAs` directly on lemmas
+- [ ] **Translation direction**: Italian → Dialect (NEVER dialect → Italian)
+  - CORRECT: `?italianEntry vartrans:translatableAs ?dialectEntry`
+  - WRONG: `?dialectEntry vartrans:translatableAs ?italianEntry`
+- [ ] Translation uses `vartrans:translatableAs` on lexical entries, NOT lemmas
 - [ ] `ontolex:canonicalForm` connects lexical entries to lemmas
-- [ ] `ontolex:writtenRep` accessed on lemmas (or via property path)
-- [ ] Sicilian uses `dcterms:isPartOf <...DialettoSiciliano/lemma/LemmaBank>`
-- [ ] Parmigiano uses `^lime:entry <...DialettoParmigiano/Lexicon>`
-- [ ] Morphological properties (POS, gender) queried on lemmas, not entries
+- [ ] `ontolex:writtenRep` accessed on lemmas
+- [ ] Morphological properties (POS, gender) queried on lemmas
+- [ ] **No GRAPH clauses needed** for basic translation queries
+- [ ] For dialect-specific aggregations (e.g., POS distribution), use dialect-specific GRAPH
 """
 
 
@@ -195,7 +251,23 @@ def validate_translation_query(sparql_query: str) -> tuple[bool, list[str]]:
             "CRITICAL: vartrans:translatableAs links lexical entries, NOT lemmas directly"
         )
 
-    # Check 2: Should use canonicalForm to connect entries to lemmas
+    # Check 2: Translation direction - dialect entry should NOT be subject of translatableAs
+    # Look for patterns like ?parmigianoEntry vartrans:translatableAs or ?sicilianEntry vartrans:translatableAs
+    wrong_direction_patterns = [
+        r"\?parmigiano\w*\s+vartrans:translatableAs",
+        r"\?sicilian\w*\s+vartrans:translatableAs",
+        r"\?dialect\w*\s+vartrans:translatableAs",
+    ]
+    for pattern in wrong_direction_patterns:
+        if re.search(pattern, sparql_query, re.IGNORECASE):
+            errors.append(
+                "CRITICAL: Translation direction is WRONG! "
+                "Direction must be Italian → Dialect, not Dialect → Italian. "
+                "Use: ?italianEntry vartrans:translatableAs ?dialectEntry"
+            )
+            break
+
+    # Check 3: Should use canonicalForm to connect entries to lemmas
     if "VARTRANS:TRANSLATABLEAS" in query_upper:
         if "ONTOLEX:CANONICALFORM" not in query_upper:
             errors.append(
