@@ -247,6 +247,13 @@ outside SERVICE because CompL-it and LiIta share URIs for lexical entries!
 
 ## CRITICAL VALIDATION CHECKLIST:
 
+**GENERAL RULES (ALL QUERIES):**
+- [ ] NEVER reuse a variable for both a URI and a literal value!
+  - WRONG: `?word ontolex:canonicalForm [ ontolex:writtenRep ?word ]` (same var for resource and string)
+  - CORRECT: `?word ontolex:canonicalForm [ ontolex:writtenRep ?wordWr ]` (different vars)
+- [ ] Use `?word`, `?entry` for lexical entries (URIs)
+- [ ] Use `?wr`, `?wordWr`, `?writtenRep` for written representations (strings)
+
 For EMOTION queries:
 - [ ] Emotions in GRAPH <http://w3id.org/elita>
 - [ ] Lemmas in GRAPH <http://liita.it/data>

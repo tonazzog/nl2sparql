@@ -78,11 +78,28 @@ GRAPH <http://w3id.org/elita> {
 ### VARIABLE NAMING CONVENTION:
 
 Use descriptive variable names to avoid confusion:
+
+**For URIs (resources):**
 - `?lemma` - for lila:Lemma resources
+- `?word`, `?entry` - for ontolex:LexicalEntry resources
 - `?elitaEntry` or `?emotionEntry` - for entries with emotions
 - `?sentixEntry` or `?polarityEntry` - for entries with polarity
 - `?translationEntry` or `?italianLexEntry` - for entries with translations
 - `?dialectEntry` or `?sicilianLexEntry` - for dialect entries
+
+**For literals (strings):**
+- `?wr`, `?wordWr`, `?writtenRep` - for ontolex:writtenRep values
+- `?definition` - for skos:definition values
+- `?label` - for rdfs:label values
+
+**CRITICAL: NEVER reuse a variable for both a URI and a literal!**
+```sparql
+# WRONG - ?word used for both resource and string:
+?word ontolex:canonicalForm [ ontolex:writtenRep ?word ]
+
+# CORRECT - different variables:
+?word ontolex:canonicalForm [ ontolex:writtenRep ?wordWr ]
+```
 
 DO NOT use generic `?lexEntry` for multiple different entry types!
 
