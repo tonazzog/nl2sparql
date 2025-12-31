@@ -74,6 +74,60 @@ Translation queries have specific structural requirements based on OntoLex-Lemon
 
 ---
 
+### DIALECT-SPECIFIC GRAPHS (CRITICAL!):
+
+Each dialect has its OWN NAMED GRAPH with its own lemmas:
+
+**Main Italian:** `GRAPH <http://liita.it/data>`
+**Parmigiano:** `GRAPH <http://liita.it/data/id/DialettoParmigiano>`
+**Sicilian:** `GRAPH <http://liita.it/data/id/DialettoSiciliano/>`
+
+**IMPORTANT DISTINCTION:**
+
+1. **"Italian words that translate to Parmigiano"** = query main graph + join with Parmigiano lexicon
+2. **"Parmigiano words/lemmas"** = query Parmigiano graph DIRECTLY
+
+**Example: POS distribution IN Parmigiano (Parmigiano lemmas):**
+```sparql
+# CORRECT - Query Parmigiano graph directly
+SELECT ?pos (COUNT(DISTINCT ?lemma) AS ?count)
+WHERE {
+  GRAPH <http://liita.it/data/id/DialettoParmigiano> {
+    ?lemma a lila:Lemma ;
+           lila:hasPOS ?pos .
+  }
+}
+GROUP BY ?pos
+```
+
+**WRONG approach (gives Italian lemmas with Parmigiano translations):**
+```sparql
+# WRONG - This queries Italian lemmas from main graph!
+SELECT ?pos (COUNT(DISTINCT ?lemma) AS ?count)
+WHERE {
+  GRAPH <http://liita.it/data> {        # <-- WRONG GRAPH for Parmigiano lemmas!
+    ?lemma a lila:Lemma ;
+           lila:hasPOS ?pos .
+  }
+  ?lexEntry ontolex:canonicalForm ?lemma ;
+            ^lime:entry <...Parmigiano/Lexicon> .
+}
+GROUP BY ?pos
+```
+
+**Alternative - Get POS from Parmigiano forms:**
+```sparql
+SELECT ?pos (COUNT(?parmigianoLexEntry) AS ?count)
+WHERE {
+  ?parmigianoLexEntry ^lime:entry <http://liita.it/data/id/LexicalReources/DialettoParmigiano/Lexicon> .
+  ?parmigianoLexEntry ontolex:canonicalForm ?parmigianoForm .
+  ?parmigianoForm lila:hasPOS ?pos .
+}
+GROUP BY ?pos
+```
+
+---
+
 ### Translation + Sentiment/Emotion:
 ```sparql
 # Italian lemma as join point
@@ -182,21 +236,27 @@ def validate_translation_query(sparql_query: str) -> tuple[bool, list[str]]:
 # Dialect resource constants
 DIALECT_RESOURCES = {
     "sicilian": {
+        "graph": "<http://liita.it/data/id/DialettoSiciliano/>",
         "lemma_bank": "<http://liita.it/data/id/DialettoSiciliano/lemma/LemmaBank>",
         "property_pattern": "dcterms:isPartOf",
         "applies_to": "lemma",
         "example": "?sicilianLemma dcterms:isPartOf <http://liita.it/data/id/DialettoSiciliano/lemma/LemmaBank>",
+        "direct_query": "GRAPH <http://liita.it/data/id/DialettoSiciliano/> { ?lemma a lila:Lemma }",
     },
     "parmigiano": {
+        "graph": "<http://liita.it/data/id/DialettoParmigiano>",
         "lexicon": "<http://liita.it/data/id/LexicalReources/DialettoParmigiano/Lexicon>",
         "property_pattern": "^lime:entry",
         "applies_to": "lexical entry",
         "example": "?parmigianoLexEntry ^lime:entry <http://liita.it/data/id/LexicalReources/DialettoParmigiano/Lexicon>",
+        "direct_query": "GRAPH <http://liita.it/data/id/DialettoParmigiano> { ?lemma a lila:Lemma }",
     },
     "italian": {
+        "graph": "<http://liita.it/data>",
         "lemma_bank": "<http://liita.it/data/id/lemma/LemmaBank>",
         "property_pattern": "dcterms:isPartOf",
         "applies_to": "lemma",
         "example": "?italianLemma dcterms:isPartOf <http://liita.it/data/id/lemma/LemmaBank>",
+        "direct_query": "GRAPH <http://liita.it/data> { ?lemma a lila:Lemma }",
     },
 }
