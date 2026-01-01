@@ -175,6 +175,173 @@ If validation fails and auto-fix is enabled, we send the query back to the LLM w
 
 ---
 
+## Component 5: Agentic Architecture (LangGraph)
+
+While the basic RAG approach works well for straightforward queries, complex questions benefit from a more intelligent workflow. The agentic architecture uses LangGraph to create a self-correcting pipeline that can reason about failures and adapt its approach.
+
+### Why Agentic?
+
+The basic pipeline has limitations:
+
+1. **Blind retries**: When a query fails, the fix loop just sends the error back to the LLM. It doesn't analyze why the failure happened or consider alternative approaches.
+
+2. **No execution feedback**: The basic system validates syntax but doesn't always verify that results make semantic sense.
+
+3. **Static retrieval**: Examples are retrieved once at the start. If the first attempt fails, we don't reconsider which examples might be more helpful.
+
+4. **No schema exploration**: When queries return empty results, there's no mechanism to discover what properties or patterns actually exist in the data.
+
+### The Agent Workflow
+
+The agent implements a state machine with the following nodes:
+
+```
+analyze → plan → retrieve → generate → execute → verify
+                    ↑                        ↓
+                    └── refine ←── (if invalid)
+                    └── explore ←── (if empty results)
+                                         ↓
+                                      output
+```
+
+**Nodes:**
+
+| Node | Purpose | LLM Tier |
+|------|---------|----------|
+| `analyze` | Detect patterns, complexity, dialects needed | Fast |
+| `plan` | Decompose complex queries into sub-tasks | Fast |
+| `retrieve` | Get relevant examples and constraints | - |
+| `generate` | Generate SPARQL query | Default (capable) |
+| `execute` | Run query against endpoint | - |
+| `verify` | Check results semantically | Fast |
+| `refine` | Record failure, prepare for retry | - |
+| `explore` | Discover schema when stuck | - |
+| `output` | Prepare final result | - |
+
+### Model Tiers
+
+The agent uses different model tiers for different tasks to balance cost and capability:
+
+- **Fast tier**: Used for analysis, planning, and verification. These tasks require understanding but not complex generation. Uses cheaper models like `gpt-4.1-mini` or `claude-3-5-haiku`.
+
+- **Default tier**: Used for SPARQL generation, which requires precise syntax and domain knowledge. Uses more capable models like `gpt-4.1` or `claude-sonnet-4`.
+
+If a specific model is provided, it's used for all operations.
+
+### Self-Correction Loop
+
+When verification fails, the agent enters a refinement loop:
+
+1. The failed query and error are recorded in `refinement_history`
+2. On the next generation attempt, this history is included in the prompt
+3. The LLM can learn from previous mistakes and try a different approach
+4. After 3 attempts (configurable), the agent outputs the best effort
+
+This is more effective than blind retries because the LLM sees the full context of what went wrong.
+
+### Schema Exploration
+
+When a query returns zero results and the agent hasn't explored the schema yet, it can query the endpoint to discover available properties:
+
+```sparql
+SELECT DISTINCT ?property WHERE {
+    ?s ?property ?o .
+    FILTER(STRSTARTS(STR(?property), "http://lila-erc.eu/ontologies/lila/"))
+} LIMIT 30
+```
+
+This helps when the LLM generates queries with incorrect property names. The discovered properties are included in subsequent generation attempts.
+
+### State Management
+
+The agent uses a TypedDict state that flows through all nodes:
+
+```python
+class NL2SPARQLState(TypedDict):
+    # Input
+    question: str
+    language: str
+    provider: str
+    model: str | None
+    api_key: str | None
+
+    # Analysis
+    detected_patterns: list[str]
+    complexity: Literal["simple", "moderate", "complex"]
+    requires_service: bool
+    dialects_needed: list[str]
+
+    # Generation
+    generated_sparql: str
+    generation_attempts: int
+
+    # Execution
+    result_count: int
+    execution_error: str | None
+
+    # Refinement (accumulates across attempts)
+    refinement_history: Annotated[list[dict], add]
+
+    # Output
+    final_sparql: str
+    confidence: float
+```
+
+The `refinement_history` uses LangGraph's `Annotated[..., add]` to accumulate entries across iterations rather than replacing them.
+
+### Integration with Existing Components
+
+The agent reuses all existing components:
+
+- **Retrieval**: Uses `HybridRetriever` for example retrieval
+- **Constraints**: Uses `get_constraints_for_patterns` for domain rules
+- **Validation**: Uses `validate_syntax` and `validate_endpoint`
+
+This means improvements to retrieval or constraints automatically benefit the agent.
+
+### When to Use the Agent
+
+| Scenario | Recommended Approach |
+|----------|---------------------|
+| Simple, single-pattern queries | Basic `NL2SPARQL` (faster, cheaper) |
+| Complex multi-pattern queries | Agent (better accuracy) |
+| Queries that often fail validation | Agent (self-correction) |
+| Interactive/exploratory use | Agent with streaming |
+| Batch evaluation | Basic `NL2SPARQL` (more predictable) |
+
+### Usage
+
+```python
+from nl2sparql.agent import NL2SPARQLAgent
+
+agent = NL2SPARQLAgent(
+    provider="openai",
+    model="gpt-4.1",        # optional
+    api_key="sk-...",      # optional
+)
+
+# Basic translation
+result = agent.translate("Trova aggettivi con traduzioni siciliane")
+
+# Streaming to see progress
+for node, state in agent.stream("Complex query here"):
+    print(f"[{node}] completed")
+```
+
+### CLI Commands
+
+```bash
+# Agentic translation
+nl2sparql agent "Find nouns expressing sadness"
+nl2sparql agent -p anthropic "Traduzioni siciliane"
+nl2sparql agent --stream "Step-by-step output"
+
+# Visualize workflow
+nl2sparql agent-viz
+```
+
+---
+
 ## Cross-Endpoint Linking
 
 A discovery during development: CompL-it and LiITA share URIs for lexical entries. This means variables bound inside a SERVICE block can be used directly outside:
@@ -195,11 +362,13 @@ This is more efficient than joining on string values and was incorporated into t
 
 **Dataset size**: 131 examples is enough for common patterns but may miss rare query types. The system can be improved by adding more examples as users discover gaps.
 
-**Pattern detection**: Keyword-based detection is simple but brittle. A classifier trained on the examples could be more robust.
+**Pattern detection**: Keyword-based detection is simple but brittle. A classifier trained on the examples could be more robust. The agent's LLM-based analysis is more flexible but adds latency.
 
-**Compositional queries**: Complex multi-step queries like "find all venomous animals" require reasoning that few-shot learning doesn't always capture. More sophisticated decomposition strategies could help.
+**Compositional queries**: Complex multi-step queries like "find all venomous animals" require reasoning that few-shot learning doesn't always capture. The agent's planning node helps with decomposition, but more sophisticated strategies could help.
 
 **Execution accuracy**: The current evaluation measures syntax validity and component matching, but not execution accuracy (comparing result sets). Adding ground truth result comparison would provide stronger validation.
+
+**Agent cost**: The agentic workflow makes multiple LLM calls (analyze, plan, generate, verify), which increases cost and latency compared to the basic pipeline. The tiered model approach mitigates this by using cheaper models for simpler tasks.
 
 ## Evaluation Framework
 

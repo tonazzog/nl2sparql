@@ -130,7 +130,7 @@ from nl2sparql.evaluation import (
 # Initialize translator
 translator = NL2SPARQL(
     provider="openai",
-    model="gpt-4o",
+    model="gpt-4.1",
     validate=True,
     fix_errors=True,
 )
@@ -181,7 +181,7 @@ The batch evaluation feature allows comparing multiple LLM providers and models 
 ### Command Line Interface
 
 ```bash
-# Quick comparison (GPT-4o-mini vs Claude 3.5 Haiku)
+# Quick comparison (GPT-4.1-mini vs Claude 3.5 Haiku)
 nl2sparql batch-evaluate -p quick
 
 # Compare all OpenAI models
@@ -197,7 +197,7 @@ nl2sparql batch-evaluate -p all_defaults
 nl2sparql batch-evaluate -p openai -o ./reports -c comparison.json
 
 # Custom model selection
-nl2sparql batch-evaluate --provider openai --provider anthropic --model gpt-4o --model claude-sonnet-4-20250514
+nl2sparql batch-evaluate --provider openai --provider anthropic --model gpt-4.1 --model claude-sonnet-4-20250514
 
 # Skip endpoint validation for faster results
 nl2sparql batch-evaluate -p quick --no-endpoint
@@ -207,8 +207,8 @@ nl2sparql batch-evaluate -p quick --no-endpoint
 
 | Preset | Models Included | Use Case |
 |--------|-----------------|----------|
-| `quick` | GPT-4o-mini, Claude 3.5 Haiku | Fast initial comparison |
-| `openai` | GPT-4o, GPT-4o-mini, GPT-4-turbo | Compare OpenAI tiers |
+| `quick` | GPT-4.1-mini, Claude 3.5 Haiku | Fast initial comparison |
+| `openai` | GPT-4.1, GPT-4.1-mini, GPT-4.1-nano | Compare OpenAI tiers |
 | `anthropic` | Claude Sonnet 4, Claude 3.5 Haiku | Compare Anthropic tiers |
 | `mistral` | Mistral Large, Mistral Small | Compare Mistral tiers |
 | `all_defaults` | Default from each provider | Cross-provider comparison |
@@ -234,8 +234,8 @@ results = run_batch_evaluation(
 
 # Or define custom configurations
 configs = [
-    ModelConfig("openai", "gpt-4o", "GPT-4o"),
-    ModelConfig("openai", "gpt-4o-mini", "GPT-4o-mini"),
+    ModelConfig("openai", "gpt-4.1", "GPT-4.1"),
+    ModelConfig("openai", "gpt-4.1-mini", "GPT-4.1-mini"),
     ModelConfig("anthropic", "claude-sonnet-4-20250514", "Claude Sonnet 4"),
     ModelConfig("anthropic", "claude-3-5-haiku-20241022", "Claude 3.5 Haiku"),
 ]
@@ -266,8 +266,8 @@ Timestamp: 2025-01-15T10:30:00
 ----------------------------------------------------------------------
 Model                          Syntax       Endpoint     Component    Time
 ----------------------------------------------------------------------
-GPT-4o                         91.4%        80.0%        85.7%        2.34s
-GPT-4o-mini                    88.6%        74.3%        82.1%        1.12s
+GPT-4.1                        91.4%        80.0%        85.7%        2.34s
+GPT-4.1-mini                   88.6%        74.3%        82.1%        1.12s
 Claude Sonnet 4                94.3%        85.7%        89.2%        2.87s
 Claude 3.5 Haiku               85.7%        71.4%        78.5%        0.95s
 ----------------------------------------------------------------------
@@ -276,13 +276,13 @@ Rankings:
 
   By Syntax Validity:
     1. Claude Sonnet 4: 94.3%
-    2. GPT-4o: 91.4%
-    3. GPT-4o-mini: 88.6%
+    2. GPT-4.1: 91.4%
+    3. GPT-4.1-mini: 88.6%
     4. Claude 3.5 Haiku: 85.7%
 
   By Endpoint Success:
     1. Claude Sonnet 4: 85.7%
-    2. GPT-4o: 80.0%
+    2. GPT-4.1: 80.0%
     ...
 
   By Generation Speed (fastest):
@@ -297,8 +297,8 @@ When using `--output-dir` (`-o`), individual reports are saved for each model:
 
 ```
 reports/
-├── report_GPT-4o.json
-├── report_GPT-4o-mini.json
+├── report_GPT-4.1.json
+├── report_GPT-4.1-mini.json
 ├── report_Claude_Sonnet_4.json
 └── report_Claude_3.5_Haiku.json
 ```
@@ -313,7 +313,7 @@ When using `--comparison` (`-c`), a summary JSON is saved with:
   "models_evaluated": 4,
   "models": [
     {
-      "name": "GPT-4o",
+      "name": "GPT-4.1",
       "provider": "openai",
       "syntax_valid_rate": 0.914,
       "endpoint_valid_rate": 0.800,

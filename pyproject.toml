@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "liita-nl2sparql"
-version = "0.2.0"
+version = "0.3.0"
 description = "Natural Language to SPARQL translation for the LiITA knowledge base"
 readme = "README.md"
 license = "MIT"
@@ -40,8 +40,35 @@ anthropic = ["anthropic>=0.18.0"]
 mistral = ["mistralai>=0.0.7"]
 gemini = ["google-generativeai>=0.3.0"]
 ollama = ["ollama>=0.1.0"]
+agent = [
+    "langgraph>=0.2.0",
+    "langchain-core>=0.3.0",
+]
+agent-openai = [
+    "liita-nl2sparql[agent]",
+    "langchain-openai>=0.2.0",
+]
+agent-anthropic = [
+    "liita-nl2sparql[agent]",
+    "langchain-anthropic>=0.2.0",
+]
+agent-mistral = [
+    "liita-nl2sparql[agent]",
+    "langchain-mistralai>=0.1.0",
+]
+agent-gemini = [
+    "liita-nl2sparql[agent]",
+    "langchain-google-genai>=2.0.0",
+]
+agent-ollama = [
+    "liita-nl2sparql[agent]",
+    "langchain-ollama>=0.2.0",
+]
+agent-all = [
+    "liita-nl2sparql[agent-openai,agent-anthropic,agent-mistral,agent-gemini,agent-ollama]",
+]
 all = [
-    "liita-nl2sparql[openai,anthropic,mistral,gemini,ollama]"
+    "liita-nl2sparql[openai,anthropic,mistral,gemini,ollama,agent-all]"
 ]
 dev = [
     "pytest>=7.0.0",

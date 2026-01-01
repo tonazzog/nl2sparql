@@ -14,6 +14,7 @@ NL2SPARQL translates natural language questions (in Italian or English) into SPA
 - **Query Validation**: Syntax checking, endpoint validation, and semantic constraint verification
 - **Auto-Fix**: Automatically attempts to fix invalid queries
 - **Bilingual**: Supports questions in both Italian and English
+- **Agentic Mode**: LangGraph-powered agent with self-correction and schema exploration
 
 ## Installation
 
@@ -30,6 +31,11 @@ pip install liita-nl2sparql[ollama]      # For local Ollama models
 
 # All providers
 pip install liita-nl2sparql[all]
+
+# Agentic mode (LangGraph-based)
+pip install liita-nl2sparql[agent-openai]     # Agent with OpenAI
+pip install liita-nl2sparql[agent-anthropic]  # Agent with Anthropic
+pip install liita-nl2sparql[agent-all]        # Agent with all providers
 ```
 
 ### Development Installation
@@ -102,6 +108,12 @@ nl2sparql list-models
 
 # Debug retrieval (see which examples are retrieved)
 nl2sparql retrieve "What are the parts of the human body?"
+
+# Agentic mode (self-correcting with LangGraph)
+nl2sparql agent "Find all nouns expressing sadness"
+nl2sparql agent -p anthropic "Trova aggettivi con traduzioni siciliane"
+nl2sparql agent --stream "Complex query with step-by-step output"
+nl2sparql agent-viz  # Show workflow diagram
 ```
 
 ### Python API
@@ -164,6 +176,61 @@ for ex in result.retrieved_examples:
     print(f"SPARQL: {ex.example.sparql[:100]}...")
 ```
 
+#### Agentic Mode (Recommended for Complex Queries)
+
+The agent uses a LangGraph workflow that can analyze, execute, verify, and self-correct queries:
+
+```python
+from nl2sparql.agent import NL2SPARQLAgent
+
+# Initialize with provider and optional API key
+agent = NL2SPARQLAgent(
+    provider="openai",       # or "anthropic", "mistral", "gemini", "ollama"
+    model="gpt-4.1",          # optional, uses provider default
+    api_key="sk-...",        # optional, uses environment variable
+)
+
+# Translate a question
+result = agent.translate(
+    question="Trova tutti i sostantivi che esprimono tristezza",
+    language="it",
+    verbose=True
+)
+
+# Access results
+print(result["sparql"])              # The generated SPARQL query
+print(result["confidence"])          # Confidence score (0-1)
+print(result["attempts"])            # Number of generation attempts
+print(result["result_count"])        # Results from endpoint execution
+print(result["is_valid"])            # Whether validation passed
+print(result["detected_patterns"])   # Patterns identified
+print(result["refinement_history"])  # Previous failed attempts (if any)
+```
+
+**Streaming mode** to see each step as it executes:
+
+```python
+agent = NL2SPARQLAgent(provider="anthropic")
+
+for node_name, state in agent.stream("Find adjectives with Sicilian translations"):
+    print(f"[{node_name}] completed")
+    if node_name == "execute":
+        print(f"  Results: {state.get('result_count', 0)}")
+```
+
+**Async support:**
+
+```python
+import asyncio
+
+async def main():
+    agent = NL2SPARQLAgent(provider="openai")
+    result = await agent.atranslate("Trova verbi con emozioni positive")
+    print(result["sparql"])
+
+asyncio.run(main())
+```
+
 ## Supported Query Types
 
 | Query Type | Example Question | Description |
@@ -185,6 +252,11 @@ nl2sparql/
 ├── __init__.py              # Public API
 ├── cli.py                   # Command-line interface
 ├── config.py                # Configuration management
+├── agent/                   # Agentic LangGraph workflow
+│   ├── __init__.py          # Public API (NL2SPARQLAgent)
+│   ├── state.py             # State definition for workflow
+│   ├── nodes.py             # Node implementations (analyze, generate, verify, etc.)
+│   └── graph.py             # LangGraph workflow definition
 ├── constraints/             # Domain-specific prompts and validation
 │   ├── base.py              # Core SPARQL patterns and system prompt
 │   ├── emotion.py           # ELITA emotion constraints
@@ -232,7 +304,7 @@ The system understands LiITA's multi-source architecture:
 
 | Provider | Default Model | Other Models |
 |----------|--------------|--------------|
-| OpenAI | gpt-4.1-mini | gpt-5.2, gpt-4.1, gpt-4.1-nano, gpt-4o,  gpt-4o-mini,  gpt-4-turbo,  gpt-3.5-turbo |
+| OpenAI | gpt-4.1-mini | gpt-5.2, gpt-4.1, gpt-4.1-nano, gpt-4-turbo, gpt-3.5-turbo |
 | Anthropic | claude-sonnet-4-20250514 | claude-opus-4-20250514, claude-3-5-haiku-20241022 |
 | Mistral | mistral-large-latest | mistral-medium-latest, mistral-small-latest |
 | Gemini | gemini-pro | gemini-pro-vision |
@@ -310,7 +382,7 @@ save_report(report, "report.json")  # Includes generated SPARQL queries
 
 # Batch model comparison
 configs = [
-    ModelConfig("openai", "gpt-4o", "GPT-4o"),
+    ModelConfig("openai", "gpt-4.1", "GPT-4.1"),
     ModelConfig("anthropic", "claude-sonnet-4-20250514", "Claude Sonnet"),
 ]
 results = run_batch_evaluation(configs, output_dir="./reports")

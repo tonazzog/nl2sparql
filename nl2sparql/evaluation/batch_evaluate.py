@@ -24,9 +24,9 @@ class ModelConfig:
 
 # Pre-defined model configurations for common comparisons
 OPENAI_MODELS = [
-    ModelConfig("openai", "gpt-4o", "GPT-4o"),
-    ModelConfig("openai", "gpt-4o-mini", "GPT-4o-mini"),
-    ModelConfig("openai", "gpt-4-turbo", "GPT-4-Turbo"),
+    ModelConfig("openai", "gpt-4.1", "GPT-4.1"),
+    ModelConfig("openai", "gpt-4.1-mini", "GPT-4.1-mini"),
+    ModelConfig("openai", "gpt-4.1-nano", "GPT-4.1-nano"),
 ]
 
 ANTHROPIC_MODELS = [
@@ -53,7 +53,7 @@ PRESETS = {
     "mistral": MISTRAL_MODELS,
     "all_defaults": ALL_PROVIDERS_DEFAULT,
     "quick": [
-        ModelConfig("openai", "gpt-4o-mini", "GPT-4o-mini"),
+        ModelConfig("openai", "gpt-4.1-mini", "GPT-4.1-mini"),
         ModelConfig("anthropic", "claude-3-5-haiku-20241022", "Claude 3.5 Haiku"),
     ],
 }

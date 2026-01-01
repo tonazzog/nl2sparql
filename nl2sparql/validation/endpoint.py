@@ -27,7 +27,7 @@ def validate_endpoint(
         - sample_results: First few results (up to 5)
     """
     try:
-        from SPARQLWrapper import SPARQLWrapper, JSON
+        from SPARQLWrapper import SPARQLWrapper, JSON, POST, URLENCODED
     except ImportError:
         raise ImportError(
             "SPARQLWrapper package not installed. Install with: pip install SPARQLWrapper"
@@ -38,6 +38,9 @@ def validate_endpoint(
         client.setQuery(sparql)
         client.setReturnFormat(JSON)
         client.setTimeout(timeout)
+        # Use POST method to avoid URL length limits and encoding issues
+        client.setMethod(POST)
+        client.setRequestMethod(URLENCODED)
         # Explicitly request JSON to avoid HTML error pages
         client.addCustomHttpHeader("Accept", "application/sparql-results+json")
 
@@ -49,7 +52,39 @@ def validate_endpoint(
                 category=RuntimeWarning,
                 module="SPARQLWrapper"
             )
-            results = client.query().convert()
+            query_result = client.query()
+
+            # Get raw response info for debugging
+            response = query_result.response
+            status_code = response.status if hasattr(response, 'status') else None
+
+            results = query_result.convert()
+
+        # Handle case where endpoint returns bytes instead of parsed JSON
+        if isinstance(results, bytes):
+            import json
+            decoded = results.decode("utf-8", errors="replace").strip()
+
+            # Empty response
+            if not decoded:
+                if status_code and status_code >= 400:
+                    return (False, f"Endpoint returned HTTP {status_code} with empty body", None, None)
+                # Empty response might mean no results - treat as success with 0 results
+                return (True, None, 0, [])
+
+            # Try to parse as JSON
+            try:
+                results = json.loads(decoded)
+            except json.JSONDecodeError:
+                # Check if it's an HTML error page
+                if decoded.startswith("<!") or decoded.startswith("<html"):
+                    return (False, f"Endpoint returned HTML error page (HTTP {status_code})", None, None)
+                return (False, f"Invalid JSON response: {decoded[:100]}", None, None)
+
+        # Ensure results is a dictionary
+        if not isinstance(results, dict):
+            return (False, f"Unexpected response type: {type(results).__name__}", None, None)
+
         bindings = results.get("results", {}).get("bindings", [])
         result_count = len(bindings)
 

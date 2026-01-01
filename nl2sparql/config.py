@@ -7,7 +7,7 @@ from typing import Optional
 
 
 # Default SPARQL endpoint for LiITA
-LIITA_ENDPOINT = "https://lila-erc.eu/sparql/"
+LIITA_ENDPOINT = "https://liita.it/sparql"
 
 # Default embedding model for semantic search
 DEFAULT_EMBEDDING_MODEL = "paraphrase-multilingual-MiniLM-L12-v2"
@@ -26,7 +26,7 @@ class LLMConfig:
     """Configuration for LLM providers."""
 
     provider: str = "openai"
-    model: str = "gpt-4o-mini"
+    model: str = "gpt-4.1-mini"
     temperature: float = 0.0
     max_tokens: int = 2048
     api_key: Optional[str] = None

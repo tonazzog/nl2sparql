@@ -529,5 +529,207 @@ def batch_evaluate_command(
         click.echo(f"Individual reports saved to: {output_dir}")
 
 
+AGENT_PROVIDERS = ["openai", "anthropic", "mistral", "gemini", "ollama"]
+
+
+@main.command("agent")
+@click.argument("question")
+@click.option(
+    "--provider", "-p",
+    type=click.Choice(AGENT_PROVIDERS),
+    default="openai",
+    help="LLM provider to use.",
+)
+@click.option(
+    "--model", "-m",
+    type=str,
+    default=None,
+    help="Model name (uses provider default if not specified).",
+)
+@click.option(
+    "--language", "-l",
+    type=click.Choice(["it", "en"]),
+    default="it",
+    help="Question language.",
+)
+@click.option(
+    "--verbose", "-V",
+    is_flag=True,
+    help="Show detailed progress.",
+)
+@click.option(
+    "--stream", "-s",
+    is_flag=True,
+    help="Stream the translation process step by step.",
+)
+@click.option(
+    "--output", "-o",
+    type=click.Path(),
+    default=None,
+    help="Save query to file.",
+)
+def agent_command(
+    question: str,
+    provider: str,
+    model: Optional[str],
+    language: str,
+    verbose: bool,
+    stream: bool,
+    output: Optional[str],
+):
+    """
+    Translate using the agentic LangGraph workflow.
+
+    This command uses an intelligent agent that can:
+    - Analyze query complexity
+    - Decompose complex queries
+    - Execute and verify results
+    - Self-correct based on errors
+    - Explore schema when needed
+
+    \\b
+    Examples:
+        nl2sparql agent "Find all nouns expressing sadness"
+        nl2sparql agent -p anthropic "Trova aggettivi con traduzioni"
+        nl2sparql agent -p openai -m gpt-4.1 "Complex query here"
+        nl2sparql agent --stream "Show step-by-step progress"
+    """
+    try:
+        from .agent import NL2SPARQLAgent
+    except ImportError as e:
+        click.secho(
+            f"Agent requires additional dependencies: {e}\n"
+            "Install with: pip install liita-nl2sparql[agent]",
+            fg="red",
+            err=True
+        )
+        sys.exit(1)
+
+    if verbose:
+        click.echo(f"Provider: {provider}")
+        if model:
+            click.echo(f"Model: {model}")
+
+    agent = NL2SPARQLAgent(provider=provider, model=model)
+
+    if stream:
+        click.echo(f"Translating: {question}")
+        click.echo("=" * 60)
+
+        final_state = None
+        for node_name, state in agent.stream(question, language):
+            final_state = state  # Keep track of accumulated state
+            click.secho(f"\n[{node_name}]", fg="cyan", bold=True)
+
+            if node_name == "analyze":
+                click.echo(f"  Patterns: {state.get('detected_patterns', [])}")
+                click.echo(f"  Complexity: {state.get('complexity', 'unknown')}")
+
+            elif node_name == "plan":
+                tasks = state.get("sub_tasks", [])
+                if len(tasks) > 1:
+                    click.echo("  Sub-tasks:")
+                    for i, task in enumerate(tasks, 1):
+                        click.echo(f"    {i}. {task}")
+
+            elif node_name == "retrieve":
+                examples = state.get("retrieved_examples", [])
+                click.echo(f"  Retrieved {len(examples)} examples")
+
+            elif node_name == "generate":
+                attempts = state.get("generation_attempts", 0)
+                click.echo(f"  Generation attempt: {attempts}")
+
+            elif node_name == "execute":
+                count = state.get("result_count", 0)
+                error = state.get("execution_error")
+                if error:
+                    click.secho(f"  Error: {error}", fg="red")
+                else:
+                    click.echo(f"  Results: {count}")
+
+            elif node_name == "verify":
+                is_valid = state.get("is_valid", False)
+                if is_valid:
+                    click.secho("  Valid!", fg="green")
+                else:
+                    errors = state.get("validation_errors", [])
+                    click.secho(f"  Issues: {errors}", fg="yellow")
+
+            elif node_name == "refine":
+                click.echo("  Preparing to retry...")
+
+            elif node_name == "explore":
+                props = state.get("discovered_properties", [])
+                click.echo(f"  Discovered {len(props)} properties")
+
+            elif node_name == "output":
+                click.echo("  Finalizing...")
+
+        # Get final result from accumulated state (no need to run workflow again)
+        result = agent.get_final_result(final_state)
+
+    else:
+        # Non-streaming mode
+        if verbose:
+            click.echo(f"Translating: {question}")
+            click.echo("-" * 50)
+
+        result = agent.translate(question, language, verbose=verbose)
+
+    # Display result
+    click.echo("\n" + "=" * 60)
+
+    if result["is_valid"]:
+        click.secho("SUCCESS", fg="green", bold=True)
+    else:
+        click.secho("BEST EFFORT (validation issues)", fg="yellow", bold=True)
+
+    click.echo(f"Confidence: {result['confidence']:.0%}")
+    click.echo(f"Attempts: {result['attempts']}")
+    click.echo(f"Results: {result['result_count']}")
+    click.echo(f"Patterns: {result['detected_patterns']}")
+
+    click.echo("\nGenerated SPARQL:")
+    click.echo("-" * 60)
+    click.echo(result["sparql"])
+
+    if result["refinement_history"]:
+        click.echo(f"\nRefinement history ({len(result['refinement_history'])} attempts):")
+        for i, attempt in enumerate(result["refinement_history"], 1):
+            click.echo(f"  {i}. Error: {attempt.get('error', 'unknown')[:80]}")
+
+    if output:
+        Path(output).write_text(result["sparql"])
+        click.echo(f"\nQuery saved to: {output}")
+
+
+@main.command("agent-viz")
+def agent_viz_command():
+    """
+    Show the agent workflow graph as Mermaid diagram.
+
+    Copy the output to https://mermaid.live to visualize.
+    """
+    try:
+        from .agent import get_graph_visualization
+    except ImportError as e:
+        click.secho(
+            f"Agent requires additional dependencies: {e}\n"
+            "Install with: pip install liita-nl2sparql[agent]",
+            fg="red",
+            err=True
+        )
+        sys.exit(1)
+
+    mermaid = get_graph_visualization()
+
+    if mermaid:
+        click.echo("Copy this Mermaid diagram to https://mermaid.live to visualize:\n")
+        click.echo(mermaid)
+    else:
+        click.secho("Could not generate visualization.", fg="red")
+
+
 if __name__ == "__main__":
     main()

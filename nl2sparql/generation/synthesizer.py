@@ -30,7 +30,7 @@ class NL2SPARQL:
     4. Validation and optional fixing
 
     Example:
-        >>> translator = NL2SPARQL(provider="openai", model="gpt-4o")
+        >>> translator = NL2SPARQL(provider="openai", model="gpt-4.1")
         >>> result = translator.translate("Quali lemmi esprimono tristezza?")
         >>> print(result.sparql)
     """
