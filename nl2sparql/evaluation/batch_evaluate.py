@@ -76,6 +76,7 @@ def run_batch_evaluation(
     patterns: Optional[list[str]] = None,
     output_dir: Optional[str] = None,
     verbose: bool = True,
+    use_agent: bool = False,
 ) -> list[BatchResult]:
     """
     Run evaluation for multiple model configurations.
@@ -88,11 +89,13 @@ def run_batch_evaluation(
         patterns: Filter by patterns
         output_dir: Directory to save individual reports (optional)
         verbose: Print progress
+        use_agent: If True, use NL2SPARQLAgent instead of NL2SPARQL
 
     Returns:
         List of BatchResult
     """
     from ..generation.synthesizer import NL2SPARQL
+    from .evaluate import AgentAdapter
 
     results = []
 
@@ -101,18 +104,27 @@ def run_batch_evaluation(
         output_path.mkdir(parents=True, exist_ok=True)
 
     for i, config in enumerate(configs, 1):
+        mode_str = " (agent)" if use_agent else ""
         if verbose:
-            print(f"\n[{i}/{len(configs)}] Evaluating {config.name}...")
+            print(f"\n[{i}/{len(configs)}] Evaluating {config.name}{mode_str}...")
 
         start_time = time.time()
 
         try:
-            translator = NL2SPARQL(
-                provider=config.provider,
-                model=config.model,
-                validate=True,
-                fix_errors=True,
-            )
+            if use_agent:
+                from ..agent import NL2SPARQLAgent
+                agent = NL2SPARQLAgent(
+                    provider=config.provider,
+                    model=config.model,
+                )
+                translator = AgentAdapter(agent)
+            else:
+                translator = NL2SPARQL(
+                    provider=config.provider,
+                    model=config.model,
+                    validate=True,
+                    fix_errors=True,
+                )
 
             report = evaluate_dataset(
                 translator=translator,

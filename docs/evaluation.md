@@ -91,11 +91,17 @@ The test dataset (`nl2sparql/data/test_dataset.json`) contains structured test c
 ### Command Line Interface
 
 ```bash
-# Full evaluation
+# Full evaluation (standard translator)
 nl2sparql evaluate
+
+# Evaluate with the agentic workflow
+nl2sparql evaluate --agent
 
 # With specific LLM provider
 nl2sparql evaluate -p anthropic -m claude-sonnet-4-20250514
+
+# Agent evaluation with specific provider
+nl2sparql evaluate --agent -p openai -m gpt-4.1
 
 # Test in English instead of Italian
 nl2sparql evaluate -l en
@@ -155,6 +161,32 @@ report = evaluate_dataset(
 save_report(report, "report.json")
 ```
 
+### Evaluating the Agent
+
+To evaluate the agentic workflow instead of the standard translator, use the `AgentAdapter`:
+
+```python
+from nl2sparql.agent import NL2SPARQLAgent
+from nl2sparql.evaluation import (
+    AgentAdapter,
+    evaluate_dataset,
+    print_report,
+)
+
+# Initialize agent
+agent = NL2SPARQLAgent(
+    provider="openai",
+    model="gpt-4.1-mini",
+)
+
+# Wrap with adapter for evaluation
+adapter = AgentAdapter(agent)
+
+# Run evaluation (same API as standard translator)
+report = evaluate_dataset(adapter, language="it")
+print_report(report)
+```
+
 ### Single Test Case
 
 ```python
@@ -183,6 +215,9 @@ The batch evaluation feature allows comparing multiple LLM providers and models 
 ```bash
 # Quick comparison (GPT-4.1-mini vs Claude 3.5 Haiku)
 nl2sparql batch-evaluate -p quick
+
+# Compare using the agentic workflow
+nl2sparql batch-evaluate --agent -p quick
 
 # Compare all OpenAI models
 nl2sparql batch-evaluate -p openai
@@ -246,6 +281,13 @@ results = run_batch_evaluation(
     validate_endpoint=True,
     output_dir="./reports",
     verbose=True,
+)
+
+# Use the agentic workflow instead of standard translator
+results = run_batch_evaluation(
+    configs=PRESETS["quick"],
+    language="it",
+    use_agent=True,  # Enable agent mode
 )
 
 # Generate and display comparison

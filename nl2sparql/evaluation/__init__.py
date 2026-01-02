@@ -8,6 +8,7 @@ from .evaluate import (
     evaluate_dataset,
     print_report,
     save_report,
+    AgentAdapter,
 )
 
 from .batch_evaluate import (
@@ -28,6 +29,8 @@ __all__ = [
     "evaluate_dataset",
     "print_report",
     "save_report",
+    # Agent support
+    "AgentAdapter",
     # Batch evaluation
     "ModelConfig",
     "BatchResult",

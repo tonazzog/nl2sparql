@@ -4,7 +4,77 @@ import json
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Protocol, runtime_checkable
+
+
+@runtime_checkable
+class TranslatorProtocol(Protocol):
+    """Protocol for standard NL2SPARQL translator."""
+    def translate(self, question: str) -> object: ...
+
+
+class AgentValidation:
+    """Validation result adapter for agent responses."""
+    def __init__(self, is_valid: bool, result_count: int, error: Optional[str] = None):
+        self.syntax_valid = is_valid
+        self.execution_success = is_valid and result_count > 0
+        self.execution_error = error
+        self.result_count = result_count
+
+
+class AgentResult:
+    """Result adapter for agent responses to match translator interface."""
+    def __init__(self, agent_result: dict):
+        self.sparql = agent_result.get("sparql", "")
+        self.detected_patterns = agent_result.get("detected_patterns", [])
+        self.confidence = agent_result.get("confidence", 0.0)
+        self.validation = AgentValidation(
+            is_valid=agent_result.get("is_valid", False),
+            result_count=agent_result.get("result_count", 0),
+            error=None if agent_result.get("is_valid") else "; ".join(
+                agent_result.get("refinement_history", [{}])[-1].get("error", "").split("; ")
+                if agent_result.get("refinement_history") else []
+            ) or None
+        )
+
+
+class AgentAdapter:
+    """
+    Adapter that wraps NL2SPARQLAgent to match the translator interface.
+
+    This allows the agent to be used with the evaluation framework.
+
+    Usage:
+        from nl2sparql.agent import NL2SPARQLAgent
+        from nl2sparql.evaluation import AgentAdapter, evaluate_dataset
+
+        agent = NL2SPARQLAgent(provider="openai", model="gpt-4.1-mini")
+        adapter = AgentAdapter(agent)
+
+        report = evaluate_dataset(adapter)
+    """
+
+    def __init__(self, agent):
+        """
+        Initialize the adapter.
+
+        Args:
+            agent: NL2SPARQLAgent instance
+        """
+        self.agent = agent
+
+    def translate(self, question: str) -> AgentResult:
+        """
+        Translate using the agent and return result in translator format.
+
+        Args:
+            question: Natural language question
+
+        Returns:
+            AgentResult that matches the translator interface
+        """
+        result = self.agent.translate(question)
+        return AgentResult(result)
 
 
 @dataclass

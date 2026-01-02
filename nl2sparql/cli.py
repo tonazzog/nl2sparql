@@ -353,6 +353,11 @@ def retrieve_command(question: str, top_k: int):
     default=None,
     help="Save report to JSON file.",
 )
+@click.option(
+    "--agent",
+    is_flag=True,
+    help="Use the agentic workflow (NL2SPARQLAgent) instead of the standard translator.",
+)
 def evaluate_command(
     provider: str,
     model: Optional[str],
@@ -361,6 +366,7 @@ def evaluate_command(
     pattern: tuple,
     no_endpoint: bool,
     output: Optional[str],
+    agent: bool,
 ):
     """
     Evaluate the system on the test dataset.
@@ -369,25 +375,35 @@ def evaluate_command(
     Examples:
         nl2sparql evaluate
         nl2sparql evaluate -p anthropic -l en
+        nl2sparql evaluate --agent  # Use agentic workflow
         nl2sparql evaluate -c single_pattern -c combination_2
         nl2sparql evaluate --pattern EMOTION_LEXICON --pattern TRANSLATION
         nl2sparql evaluate -o report.json
     """
     from .generation.synthesizer import NL2SPARQL
-    from .evaluation import evaluate_dataset, print_report, save_report
+    from .evaluation import evaluate_dataset, print_report, save_report, AgentAdapter
 
-    click.echo("NL2SPARQL Evaluation")
+    mode_str = "Agent" if agent else "Standard"
+    click.echo(f"NL2SPARQL Evaluation ({mode_str} Mode)")
     click.echo(f"Provider: {provider}, Model: {model or 'default'}")
     click.echo(f"Language: {language}")
     click.echo()
 
-    # Initialize translator
-    translator = NL2SPARQL(
-        provider=provider,
-        model=model,
-        validate=True,
-        fix_errors=True,
-    )
+    # Initialize translator or agent
+    if agent:
+        from .agent import NL2SPARQLAgent
+        nl2sparql_agent = NL2SPARQLAgent(
+            provider=provider,
+            model=model,
+        )
+        translator = AgentAdapter(nl2sparql_agent)
+    else:
+        translator = NL2SPARQL(
+            provider=provider,
+            model=model,
+            validate=True,
+            fix_errors=True,
+        )
 
     # Run evaluation
     categories = list(category) if category else None
@@ -451,6 +467,11 @@ def evaluate_command(
     default=None,
     help="Path to save comparison report.",
 )
+@click.option(
+    "--agent",
+    is_flag=True,
+    help="Use the agentic workflow (NL2SPARQLAgent) instead of the standard translator.",
+)
 def batch_evaluate_command(
     preset: Optional[str],
     provider: tuple,
@@ -459,6 +480,7 @@ def batch_evaluate_command(
     no_endpoint: bool,
     output_dir: Optional[str],
     comparison: Optional[str],
+    agent: bool,
 ):
     """
     Evaluate multiple LLM models and compare results.
@@ -467,13 +489,14 @@ def batch_evaluate_command(
     Examples:
         nl2sparql batch-evaluate -p quick
         nl2sparql batch-evaluate -p openai -o ./reports
+        nl2sparql batch-evaluate --agent -p quick  # Use agentic workflow
         nl2sparql batch-evaluate --provider openai --provider anthropic
         nl2sparql batch-evaluate -p all_defaults -c comparison.json
 
     \\b
     Available presets:
-        quick         - GPT-4o-mini + Claude 3.5 Haiku (fast comparison)
-        openai        - All OpenAI models (GPT-5.2, GPT-4.1, GPT-4o)
+        quick         - GPT-4.1-mini + Claude 3.5 Haiku (fast comparison)
+        openai        - All OpenAI models (GPT-4.1, GPT-4.1-mini, GPT-4.1-nano)
         anthropic     - All Anthropic models (Claude Sonnet 4, Claude 3.5 Haiku)
         mistral       - All Mistral models (Large, Small)
         all_defaults  - Default model from each provider
@@ -487,9 +510,10 @@ def batch_evaluate_command(
     )
 
     # Build config list
+    mode_str = "Agent" if agent else "Standard"
     if preset:
         configs = PRESETS[preset]
-        click.echo(f"Using preset: {preset} ({len(configs)} models)")
+        click.echo(f"Using preset: {preset} ({len(configs)} models) - {mode_str} Mode")
     elif provider:
         models = list(model) if model else [None] * len(provider)
         if len(models) < len(provider):
@@ -498,7 +522,7 @@ def batch_evaluate_command(
             ModelConfig(p, m)
             for p, m in zip(provider, models)
         ]
-        click.echo(f"Evaluating {len(configs)} custom configuration(s)")
+        click.echo(f"Evaluating {len(configs)} custom configuration(s) - {mode_str} Mode")
     else:
         click.secho("Error: Specify --preset or --provider", fg="red", err=True)
         sys.exit(1)
@@ -513,6 +537,7 @@ def batch_evaluate_command(
         validate_endpoint=not no_endpoint,
         output_dir=output_dir,
         verbose=True,
+        use_agent=agent,
     )
 
     # Create and print comparison
