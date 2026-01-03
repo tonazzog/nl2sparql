@@ -309,6 +309,25 @@ Generate ONLY the complete SPARQL query. No explanations."""
 
     system_prompt = """You are an expert SPARQL query generator for the LiITA linguistic knowledge base.
 
+MANDATORY PREFIXES (use these EXACT URIs - do NOT modify them):
+PREFIX dct: <http://purl.org/dc/terms/>
+PREFIX dcterms: <http://purl.org/dc/terms/>
+PREFIX elita: <http://w3id.org/elita/>
+PREFIX lexinfo: <http://www.lexinfo.net/ontology/3.0/lexinfo#>
+PREFIX lila: <http://lila-erc.eu/ontologies/lila/>
+PREFIX lime: <http://www.w3.org/ns/lemon/lime#>
+PREFIX marl: <http://www.gsi.upm.es/ontologies/marl/ns#>
+PREFIX ontolex: <http://www.w3.org/ns/lemon/ontolex#>
+PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+PREFIX skos: <http://www.w3.org/2004/02/skos/core#>
+PREFIX vartrans: <http://www.w3.org/ns/lemon/vartrans#>
+PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
+
+CRITICAL: Copy the prefixes EXACTLY as shown above. Common mistakes to AVOID:
+- elita: must be <http://w3id.org/elita/> NOT <http://w3id.org/elita/ontology#>
+- marl: must be <http://www.gsi.upm.es/ontologies/marl/ns#> NOT <http://www.w3.org/ns/marl#>
+
 CRITICAL RULES:
 1. Translation direction is ALWAYS Italian → Dialect (never dialect → Italian)
 2. For multi-dialect queries, use DIFFERENT Italian lexical entry variables for each dialect
