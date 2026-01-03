@@ -286,6 +286,8 @@ nl2sparql/
 ├── evaluation/              # Evaluation framework
 │   ├── evaluate.py          # Test runner and metrics
 │   └── batch_evaluate.py    # Multi-model comparison
+├── synthetic/               # Synthetic data generation
+│   └── generator.py         # Training data generator
 └── data/
     ├── sparql_queries_final.json  # Training dataset
     └── test_dataset.json          # Evaluation test cases
@@ -398,6 +400,27 @@ print_comparison(comparison)
 - **Pattern detection accuracy**: How well the system identifies query types
 
 See [docs/evaluation.md](docs/evaluation.md) for detailed documentation.
+
+## Synthetic Data Generation
+
+Generate training data for fine-tuning custom LLMs on NL2SPARQL:
+
+```bash
+# Generate synthetic (NL, SPARQL) pairs
+nl2sparql generate-synthetic -o training_data.jsonl
+
+# With options
+nl2sparql generate-synthetic -o data.jsonl -n 10 -m 500 -f alpaca
+```
+
+The generator creates validated training pairs by:
+1. Generating NL variations of seed examples
+2. Creating pattern combination questions
+3. Validating all SPARQL against the endpoint
+
+Output formats: `jsonl`, `json`, `alpaca`, `sharegpt`, `hf` (HuggingFace)
+
+See [docs/synthetic_data.md](docs/synthetic_data.md) for detailed documentation.
 
 ## License
 

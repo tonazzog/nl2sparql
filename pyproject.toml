@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "liita-nl2sparql"
-version = "0.3.0"
+version = "0.4.0"
 description = "Natural Language to SPARQL translation for the LiITA knowledge base"
 readme = "README.md"
 license = "MIT"
@@ -67,8 +67,12 @@ agent-ollama = [
 agent-all = [
     "liita-nl2sparql[agent-openai,agent-anthropic,agent-mistral,agent-gemini,agent-ollama]",
 ]
+synthetic = [
+    "liita-nl2sparql[agent]",
+    "datasets>=2.14.0",  # HuggingFace datasets for export
+]
 all = [
-    "liita-nl2sparql[openai,anthropic,mistral,gemini,ollama,agent-all]"
+    "liita-nl2sparql[openai,anthropic,mistral,gemini,ollama,agent-all,synthetic]"
 ]
 dev = [
     "pytest>=7.0.0",

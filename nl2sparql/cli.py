@@ -756,5 +756,167 @@ def agent_viz_command():
         click.secho("Could not generate visualization.", fg="red")
 
 
+@main.command("generate-synthetic")
+@click.option(
+    "--output", "-o",
+    type=click.Path(),
+    required=True,
+    help="Output file path (e.g., synthetic_data.jsonl).",
+)
+@click.option(
+    "--format", "-f",
+    type=click.Choice(["jsonl", "json", "alpaca", "sharegpt", "hf"]),
+    default="jsonl",
+    help="Output format.",
+)
+@click.option(
+    "--num-variations", "-n",
+    type=int,
+    default=5,
+    help="Number of NL variations per seed example.",
+)
+@click.option(
+    "--num-combinations", "-c",
+    type=int,
+    default=10,
+    help="Number of pattern combination questions to generate.",
+)
+@click.option(
+    "--max-pairs", "-m",
+    type=int,
+    default=None,
+    help="Maximum total pairs to generate.",
+)
+@click.option(
+    "--min-results",
+    type=int,
+    default=1,
+    help="Minimum query results required for valid pair.",
+)
+@click.option(
+    "--provider", "-p",
+    type=click.Choice(AGENT_PROVIDERS),
+    default="openai",
+    help="LLM provider to use.",
+)
+@click.option(
+    "--model",
+    type=str,
+    default=None,
+    help="Model name (uses provider default if not specified).",
+)
+@click.option(
+    "--language", "-l",
+    type=click.Choice(["it", "en"]),
+    default="it",
+    help="Language for generated questions.",
+)
+@click.option(
+    "--no-agent",
+    is_flag=True,
+    help="Use standard translator instead of agent for SPARQL generation.",
+)
+@click.option(
+    "--include-seeds/--no-seeds",
+    default=True,
+    help="Include original seed examples in output.",
+)
+@click.option(
+    "--quiet", "-q",
+    is_flag=True,
+    help="Suppress progress output.",
+)
+def generate_synthetic_command(
+    output: str,
+    format: str,
+    num_variations: int,
+    num_combinations: int,
+    max_pairs: Optional[int],
+    min_results: int,
+    provider: str,
+    model: Optional[str],
+    language: str,
+    no_agent: bool,
+    include_seeds: bool,
+    quiet: bool,
+):
+    """
+    Generate synthetic training data for fine-tuning.
+
+    Creates (NL question, SPARQL query) pairs by:
+    1. Generating NL variations of seed examples
+    2. Creating pattern combination questions
+    3. Validating all generated SPARQL against the endpoint
+
+    \\b
+    Examples:
+        nl2sparql generate-synthetic -o data.jsonl
+        nl2sparql generate-synthetic -o data.json -f json -n 10
+        nl2sparql generate-synthetic -o train.jsonl -m 500 -p anthropic
+        nl2sparql generate-synthetic -o alpaca.json -f alpaca --no-seeds
+
+    \\b
+    Output formats:
+        jsonl    - JSON Lines (one record per line, with metadata)
+        json     - JSON array (with metadata)
+        alpaca   - Alpaca format for fine-tuning (instruction/input/output)
+        sharegpt - ShareGPT format for chat fine-tuning
+        hf       - HuggingFace datasets format (directory)
+    """
+    try:
+        from .synthetic import SyntheticDataGenerator
+    except ImportError as e:
+        click.secho(
+            f"Synthetic generation requires agent dependencies: {e}\n"
+            "Install with: pip install liita-nl2sparql[agent]",
+            fg="red",
+            err=True
+        )
+        sys.exit(1)
+
+    if not quiet:
+        click.echo("NL2SPARQL Synthetic Data Generator")
+        click.echo("=" * 60)
+        click.echo(f"Provider: {provider}, Model: {model or 'default'}")
+        click.echo(f"Mode: {'Standard translator' if no_agent else 'Agent'}")
+        click.echo(f"Variations per seed: {num_variations}")
+        click.echo(f"Pattern combinations: {num_combinations}")
+        if max_pairs:
+            click.echo(f"Max pairs: {max_pairs}")
+        click.echo(f"Output: {output} ({format})")
+        click.echo()
+
+    generator = SyntheticDataGenerator(
+        provider=provider,
+        model=model,
+        use_agent=not no_agent,
+    )
+
+    pairs, stats = generator.generate_dataset(
+        num_variations_per_seed=num_variations,
+        num_combinations=num_combinations,
+        min_results=min_results,
+        max_pairs=max_pairs,
+        language=language,
+        include_seeds=include_seeds,
+        verbose=not quiet,
+    )
+
+    generator.save_dataset(pairs, output, format=format)
+
+    if not quiet:
+        click.echo()
+        click.secho(f"Successfully generated {len(pairs)} training pairs!", fg="green")
+        click.echo(f"Output saved to: {output}")
+
+        # Show summary by method
+        by_method = {}
+        for p in pairs:
+            by_method[p.generation_method] = by_method.get(p.generation_method, 0) + 1
+        click.echo(f"\nBreakdown by method:")
+        for method, count in sorted(by_method.items()):
+            click.echo(f"  {method}: {count}")
+
+
 if __name__ == "__main__":
     main()
