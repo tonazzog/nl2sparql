@@ -340,7 +340,31 @@ SERVICE BLOCK RULES (VERY IMPORTANT):
 7. The ONLY valid SERVICE endpoint is: SERVICE <https://klab.ilc.cnr.it/graphdb-compl-it/>
 8. NEVER use localhost, made-up URLs, or any other SERVICE endpoints
 9. For EMOTION queries (ELITA), do NOT use SERVICE - emotions are in GRAPH <http://w3id.org/elita>
-10. For TRANSLATION queries (dialects), do NOT use SERVICE - translations are in the main LiITA data"""
+10. For TRANSLATION queries (dialects), do NOT use SERVICE - translations are in the main LiITA data
+
+LINKING LIITA TO COMPL-IT (CRITICAL):
+11. When starting from a LiITA lemma and needing CompL-it data (definitions, semantic relations):
+    - Use the SAME variable name (?writtenRep) in both GRAPH and SERVICE blocks
+    - The shared variable creates a NATURAL JOIN - no FILTER needed
+    - NEVER use FILTER(STR(?x) = STR(?y)) to compare variables across SERVICE boundaries
+
+    CORRECT pattern:
+    GRAPH <http://liita.it/data> {
+        ?lemma a lila:Lemma ; ontolex:writtenRep ?writtenRep .
+    }
+    SERVICE <https://klab.ilc.cnr.it/graphdb-compl-it/> {
+        ?word ontolex:canonicalForm [ ontolex:writtenRep ?writtenRep ] ;
+              ontolex:sense [ skos:definition ?definition ] .
+    }
+
+    WRONG - causes "variable not assigned" error:
+    GRAPH <http://liita.it/data> {
+        ?lemma a lila:Lemma ; ontolex:writtenRep ?lilaRep .
+    }
+    SERVICE <https://klab.ilc.cnr.it/graphdb-compl-it/> {
+        ?word ontolex:canonicalForm [ ontolex:writtenRep ?complRep ] .
+        FILTER(STR(?complRep) = STR(?lilaRep))  # ERROR: ?lilaRep not visible inside SERVICE!
+    }"""
 
     response = llm.invoke([
         SystemMessage(content=system_prompt),

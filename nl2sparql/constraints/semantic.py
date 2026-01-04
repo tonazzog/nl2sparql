@@ -286,16 +286,66 @@ GRAPH <http://liita.it/data> {
 
 ---
 
-## Pattern 8: When to Use Which Join Strategy
+## Pattern 8: Starting from LiITA Lemma (CRITICAL!)
+
+When you START with a LiITA lemma and need definitions from CompL-it, use the SAME VARIABLE NAME for writtenRep to create a natural join:
+
+**WRONG - Variables from outside cannot be used in FILTER inside SERVICE:**
+```sparql
+# WRONG - This will cause error: "Variable 'writtenRep' is used but not assigned"
+GRAPH <http://liita.it/data> {
+    ?lemma a lila:Lemma ;
+           lila:hasPOS lila:noun ;
+           ontolex:writtenRep ?writtenRep .
+    FILTER(REGEX(STR(?writtenRep), "etto$"))
+}
+
+SERVICE <https://klab.ilc.cnr.it/graphdb-compl-it/> {
+    ?word ontolex:canonicalForm [ ontolex:writtenRep ?wr ] ;
+          ontolex:sense [ skos:definition ?definition ] .
+    FILTER(STR(?wr) = STR(?writtenRep))  # ERROR: ?writtenRep not accessible here!
+}
+```
+
+**CORRECT - Use the SAME variable name to create a natural join:**
+```sparql
+# CORRECT - Same variable ?writtenRep creates automatic join
+GRAPH <http://liita.it/data> {
+    ?lemma a lila:Lemma ;
+           lila:hasPOS lila:noun ;
+           ontolex:writtenRep ?writtenRep .
+    FILTER(REGEX(STR(?writtenRep), "etto$"))
+}
+
+SERVICE <https://klab.ilc.cnr.it/graphdb-compl-it/> {
+    ?word ontolex:canonicalForm [ ontolex:writtenRep ?writtenRep ] ;
+          ontolex:sense [ skos:definition ?definition ] .
+    # NO FILTER needed! The same variable name creates the join automatically
+}
+```
+
+**KEY INSIGHT**: SPARQL federation allows the same variable to be used in both the main query and SERVICE block. This creates an implicit join on that variable's value - much more efficient than string comparison!
+
+**When to use this pattern:**
+- Starting from LiITA lemmas (GRAPH block) and need CompL-it data (definitions, senses)
+- The join is on the written form of the word (ontolex:writtenRep)
+- Works for both exact matches and regex filters
+
+---
+
+## Pattern 9: When to Use Which Join Strategy
 
 | Scenario | Strategy |
 |----------|----------|
+| Start from LiITA lemma, need definition | Use SAME variable for writtenRep (Pattern 8) |
 | Need definition + filter by pattern | Start with SERVICE, filter inside, link via URI |
 | Need definition for specific word | Start with SERVICE, filter by exact word |
 | Need semantic relations + LiITA data | Start with SERVICE, link via URI |
 | Need LiITA-only data (no definition) | Just use GRAPH, no SERVICE needed |
 
-**The general rule**: If you need CompL-it data (definitions, senses, semantic relations) AND any filtering, the filter should happen INSIDE the SERVICE block.
+**The general rule**:
+- If starting from LiITA: Use same variable name for writtenRep to join with SERVICE
+- If starting from CompL-it: Filter inside SERVICE, then link via shared URI
 
 ---
 
