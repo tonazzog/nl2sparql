@@ -272,9 +272,13 @@ def generate_sparql(state: NL2SPARQLState) -> dict[str, Any]:
     for ex in state["retrieved_examples"][:3]:
         examples_text += f"\n### Example:\nQuestion: {ex['nl']}\n```sparql\n{ex['sparql']}\n```\n"
 
-    # Include discovered schema if available
+    # Include discovered schema if available (from ontology retrieval)
     schema_context = ""
-    if state["discovered_properties"]:
+    if state.get("schema_context"):
+        # Use detailed ontology descriptions (preferred)
+        schema_context = f"\n\n{state['schema_context']}"
+    elif state["discovered_properties"]:
+        # Fallback to just URIs
         schema_context = f"\n\n## Discovered Properties:\n{', '.join(state['discovered_properties'][:20])}"
 
     # Explicit SERVICE instruction based on requires_service flag
@@ -386,13 +390,96 @@ LINKING LIITA TO COMPL-IT (CRITICAL):
     }
 
 
+def _check_variable_reuse(sparql: str) -> str | None:
+    """Check for common variable reuse bugs in SPARQL.
+
+    Detects when a variable is used both as a URI (subject/object position)
+    and as a literal (in writtenRep). This is a common LLM mistake.
+
+    Returns error message if bug found, None otherwise.
+    """
+    # Find variables used in writtenRep (these should be literals)
+    literal_vars = set(re.findall(r'writtenRep\s+(\?\w+)', sparql))
+
+    # Find variables used as subjects (at start of triple pattern)
+    # Pattern: newline/brace followed by ?var followed by space/predicate
+    subject_vars = set(re.findall(r'(?:^|\{|\.\s*)\s*(\?\w+)\s+(?:a\s|ontolex:|lexinfo:|skos:|lila:|rdf:|rdfs:)', sparql, re.MULTILINE))
+
+    # Find overlap - variables used both as literal and as subject/URI
+    reused_vars = literal_vars & subject_vars
+
+    if reused_vars:
+        return f"Variable reuse error: {', '.join(reused_vars)} used both as URI and literal. Use different variable names."
+
+    return None
+
+
+def _fix_case_sensitive_filters(sparql: str) -> tuple[str, bool]:
+    """Fix case-sensitive string equality filters to case-insensitive regex.
+
+    Converts patterns like:
+        FILTER(STR(?var) = "string")
+        FILTER(?var = "string")
+
+    To case-insensitive regex:
+        FILTER(REGEX(STR(?var), "^string$", "i"))
+
+    This is a targeted fix that doesn't change query structure.
+    Used when a query returns 0 results due to case mismatch (e.g., "rabbia" vs "Rabbia").
+
+    Returns:
+        tuple: (fixed_sparql, was_modified)
+    """
+    modified = False
+
+    # Pattern 1: FILTER(STR(?var) = "string")
+    pattern1 = r'FILTER\s*\(\s*STR\s*\(\s*(\?\w+)\s*\)\s*=\s*"([^"]+)"\s*\)'
+
+    def replace1(match):
+        nonlocal modified
+        modified = True
+        var = match.group(1)
+        value = match.group(2)
+        # Escape regex special characters in the value
+        escaped_value = re.escape(value)
+        return f'FILTER(REGEX(STR({var}), "^{escaped_value}$", "i"))'
+
+    sparql = re.sub(pattern1, replace1, sparql)
+
+    # Pattern 2: FILTER(?var = "string") - direct variable comparison
+    pattern2 = r'FILTER\s*\(\s*(\?\w+)\s*=\s*"([^"]+)"\s*\)'
+
+    def replace2(match):
+        nonlocal modified
+        modified = True
+        var = match.group(1)
+        value = match.group(2)
+        escaped_value = re.escape(value)
+        return f'FILTER(REGEX(STR({var}), "^{escaped_value}$", "i"))'
+
+    sparql = re.sub(pattern2, replace2, sparql)
+
+    return sparql, modified
+
+
 def execute_query(state: NL2SPARQLState) -> dict[str, Any]:
     """Execute the SPARQL query against the endpoint."""
     from ..validation.endpoint import validate_endpoint
     from ..validation.syntax import validate_syntax
 
+    sparql = state["generated_sparql"]
+
+    # Check for variable reuse bug (same var for URI and literal)
+    reuse_error = _check_variable_reuse(sparql)
+    if reuse_error:
+        return {
+            "execution_result": None,
+            "result_count": 0,
+            "execution_error": reuse_error
+        }
+
     # First check syntax
-    syntax_valid, syntax_error = validate_syntax(state["generated_sparql"])
+    syntax_valid, syntax_error = validate_syntax(sparql)
 
     if not syntax_valid:
         return {
@@ -402,10 +489,24 @@ def execute_query(state: NL2SPARQLState) -> dict[str, Any]:
         }
 
     # Execute against endpoint
-    success, error, count, results = validate_endpoint(
-        state["generated_sparql"],
-        timeout=30
-    )
+    success, error, count, results = validate_endpoint(sparql, timeout=30)
+
+    # If no results and no error, try fixing case-sensitive filters
+    # This handles cases like "rabbia" vs "Rabbia" without regenerating the whole query
+    if success and (count is None or count == 0) and not error:
+        fixed_sparql, was_fixed = _fix_case_sensitive_filters(sparql)
+        if was_fixed:
+            # Re-execute with case-insensitive filters
+            success2, error2, count2, results2 = validate_endpoint(fixed_sparql, timeout=30)
+            if success2 and count2 and count2 > 0:
+                # The fix worked! Update the generated query and return new results
+                return {
+                    "execution_result": results2,
+                    "result_count": count2,
+                    "execution_error": None,
+                    # Update the generated_sparql with the fixed version
+                    "generated_sparql": fixed_sparql,
+                }
 
     return {
         "execution_result": results,
@@ -415,77 +516,55 @@ def execute_query(state: NL2SPARQLState) -> dict[str, Any]:
 
 
 def verify_results(state: NL2SPARQLState) -> dict[str, Any]:
-    """Verify that results match the question semantically."""
-    from langchain_core.messages import HumanMessage
+    """Verify query execution results.
 
+    Checks for:
+    1. Technical errors (syntax, execution) - triggers refine
+    2. Zero results after minor fixes - triggers explore/refine
+
+    Does NOT perform semantic verification of results because LLMs lack
+    domain knowledge and over-aggressive verification introduces bugs.
+    """
     validation_errors = []
+    has_technical_error = False
 
-    # Check for execution errors
+    # Check for actual execution errors (technical failures)
     if state["execution_error"]:
-        validation_errors.append(state["execution_error"])
+        error_msg = state["execution_error"].lower()
+        if any(err in error_msg for err in ["syntax", "parse", "timeout", "connection", "500", "error"]):
+            validation_errors.append(state["execution_error"])
+            has_technical_error = True
 
-    # Check for empty results
-    if state["result_count"] == 0:
-        validation_errors.append("Query returned no results - may need different approach")
+    # Query is syntactically valid if no technical errors
+    syntax_valid = not has_technical_error
 
-    # Semantic verification for non-empty results
-    if state["result_count"] > 0 and state["execution_result"] and len(validation_errors) == 0:
-        # Use fast tier for verification
-        llm = get_llm(
-            provider=state["provider"],
-            model=state["model"],
-            tier="fast",
-            api_key=state["api_key"],
-        )
+    # Store first syntactically valid query as fallback
+    # (only on first attempt, when first_valid_sparql is empty)
+    first_valid_sparql = state.get("first_valid_sparql", "")
+    if syntax_valid and not first_valid_sparql and state["generated_sparql"]:
+        first_valid_sparql = state["generated_sparql"]
 
-        sample_results = state["execution_result"][:5]
-
-        verify_prompt = f"""Verify if these SPARQL results correctly answer the question.
-
-Question: {state["question"]}
-
-Sample results (first 5 of {state["result_count"]}):
-{json.dumps(sample_results, indent=2, ensure_ascii=False)}
-
-Check:
-1. Do the results contain the expected type of data?
-2. Are variable names meaningful for the question?
-3. Any obvious issues?
-
-Respond with JSON only:
-{{"valid": true, "issues": []}}
-or
-{{"valid": false, "issues": ["issue1", "issue2"]}}"""
-
-        response = llm.invoke([HumanMessage(content=verify_prompt)])
-
-        try:
-            content = response.content
-            if "```json" in content:
-                content = content.split("```json")[1].split("```")[0]
-            elif "```" in content:
-                content = content.split("```")[1].split("```")[0]
-
-            verification = json.loads(content.strip())
-
-            if not verification.get("valid", True):
-                validation_errors.extend(verification.get("issues", []))
-        except (json.JSONDecodeError, IndexError):
-            pass  # Skip verification if parsing fails
+    # Zero results (after minor fixes in execute_query) should trigger explore/refine
+    # But we still consider the query "syntactically valid" for fallback purposes
+    if state["result_count"] == 0 and not has_technical_error:
+        validation_errors.append("Query returned 0 results - will try explore/refine")
 
     is_valid = len(validation_errors) == 0
 
     # Calculate confidence
     if is_valid:
         confidence = min(1.0, 0.5 + (state["result_count"] / 100) * 0.5)
+    elif syntax_valid:
+        confidence = 0.4  # Syntax OK but no results
     else:
-        confidence = 0.3
+        confidence = 0.2  # Technical error
 
     return {
         "is_valid": is_valid,
         "validation_errors": validation_errors,
         "final_sparql": state["generated_sparql"] if is_valid else "",
         "confidence": confidence,
+        "first_valid_sparql": first_valid_sparql,
         "explanation": (
             f"Query returned {state['result_count']} results."
             if is_valid
@@ -516,53 +595,73 @@ def refine_query(state: NL2SPARQLState) -> dict[str, Any]:
 
 
 def explore_schema(state: NL2SPARQLState) -> dict[str, Any]:
-    """Explore the knowledge base schema for relevant properties."""
-    from ..validation.endpoint import validate_endpoint
+    """Explore ontology to find relevant classes and properties for the query.
 
-    # Query for available properties
-    schema_queries = [
-        # LiLA properties
-        """
-        SELECT DISTINCT ?property WHERE {
-            ?s ?property ?o .
-            FILTER(STRSTARTS(STR(?property), "http://lila-erc.eu/ontologies/lila/"))
-        } LIMIT 30
-        """,
-        # OntoLex properties
-        """
-        SELECT DISTINCT ?property WHERE {
-            ?s ?property ?o .
-            FILTER(STRSTARTS(STR(?property), "http://www.w3.org/ns/lemon/ontolex#"))
-        } LIMIT 30
-        """
-    ]
+    Uses semantic search over ontology definitions to discover appropriate
+    vocabulary based on the user's question. This is more effective than
+    querying the endpoint for property URIs because it provides:
+    - Property/class descriptions (what they mean)
+    - Domain/range information (how to use them)
+    - SPARQL usage examples
+    """
+    from ..retrieval.ontology_retriever import OntologyRetriever
 
-    discovered = []
+    try:
+        retriever = OntologyRetriever()
 
-    for query in schema_queries:
-        success, error, count, results = validate_endpoint(query.strip(), timeout=15)
-        if success and results:
-            for r in results:
-                prop = r.get("property", "")
-                if prop and prop not in discovered:
-                    discovered.append(prop)
+        # Retrieve properties and classes relevant to the question
+        # Focus on properties since they're most important for query construction
+        properties = retriever.retrieve_properties(state["question"], top_k=8)
+        classes = retriever.retrieve_classes(state["question"], top_k=4)
 
-    return {
-        "discovered_properties": discovered[:30],
-        "schema_explored": True
-    }
+        # Combine and format for the prompt
+        all_entries = properties + classes
+        schema_context = retriever.format_for_prompt(all_entries, include_examples=True)
+
+        # Also store URIs for backward compatibility
+        discovered_uris = [item.entry.uri for item in all_entries]
+
+        return {
+            "discovered_properties": discovered_uris,
+            "schema_context": schema_context,  # Detailed descriptions for prompt
+            "schema_explored": True
+        }
+
+    except Exception as e:
+        # Fallback if ontology retrieval fails
+        return {
+            "discovered_properties": [],
+            "schema_context": f"Schema exploration failed: {str(e)}",
+            "schema_explored": True
+        }
 
 
 def output_result(state: NL2SPARQLState) -> dict[str, Any]:
-    """Prepare final output."""
+    """Prepare final output.
 
-    # If we have a valid result, use it
+    Priority:
+    1. Valid query with results → use it
+    2. Exhausted attempts → use first syntactically valid query (fallback)
+    3. No valid query → return error
+    """
+
+    # If we have a valid result with results, use it
     if state["is_valid"] and state["final_sparql"]:
         return {
             "explanation": f"Successfully generated query with {state['result_count']} results after {state['generation_attempts']} attempt(s)."
         }
 
-    # If we exhausted attempts, return best effort
+    # If we exhausted attempts, prefer first syntactically valid query as fallback
+    # This is better than later attempts which may have introduced errors
+    first_valid = state.get("first_valid_sparql", "")
+    if first_valid:
+        return {
+            "final_sparql": first_valid,
+            "confidence": 0.3,
+            "explanation": f"Returning first syntactically valid query after {state['generation_attempts']} attempts. Refinement did not improve results."
+        }
+
+    # Fallback to last generated query if no first_valid
     if state["generated_sparql"]:
         return {
             "final_sparql": state["generated_sparql"],

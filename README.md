@@ -10,11 +10,12 @@ NL2SPARQL translates natural language questions (in Italian or English) into SPA
 
 - **Multi-LLM Support**: Works with OpenAI, Anthropic, Mistral, Google Gemini, and local Ollama models
 - **Hybrid Retrieval**: Combines semantic search (sentence transformers + FAISS), BM25, and pattern matching
+- **Ontology-Aware**: Semantic search over ontology definitions to discover relevant properties and classes
 - **Domain-Specific Constraints**: Built-in knowledge of LiITA's architecture (emotions, translations, semantic relations)
-- **Query Validation**: Syntax checking, endpoint validation, and semantic constraint verification
-- **Auto-Fix**: Automatically attempts to fix invalid queries
+- **Query Validation**: Syntax checking, endpoint validation, and constraint verification
+- **Auto-Fix**: Automatically fixes case-sensitive filters and detects variable reuse bugs
 - **Bilingual**: Supports questions in both Italian and English
-- **Agentic Mode**: LangGraph-powered agent with self-correction and schema exploration
+- **Agentic Mode**: LangGraph-powered agent with self-correction and ontology exploration
 
 ## Installation
 
@@ -231,6 +232,28 @@ async def main():
 asyncio.run(main())
 ```
 
+#### Ontology Retrieval
+
+The agent uses semantic search over an ontology catalog to discover relevant properties and classes. This helps when the LLM needs to find the right vocabulary for a query:
+
+```python
+from nl2sparql.retrieval import OntologyRetriever
+
+retriever = OntologyRetriever()
+
+# Find properties related to "broader meaning" (e.g., for hypernyms)
+results = retriever.retrieve_properties("broader meaning", top_k=5)
+
+for item in results:
+    print(f"{item.entry.prefix_local}: {item.entry.short_text}")
+    # lexinfo:hypernym: A term with a broader meaning
+
+# Format for LLM prompt
+prompt_text = retriever.format_for_prompt(results)
+```
+
+The ontology catalog includes classes and properties from OntoLex-Lemon, LexInfo, SKOS, LiLA, ELITA, and other vocabularies used by LiITA.
+
 ## Supported Query Types
 
 | Query Type | Example Question | Description |
@@ -266,6 +289,7 @@ nl2sparql/
 │   └── prompt_builder.py    # Dynamic prompt construction
 ├── retrieval/               # Hybrid retrieval system
 │   ├── hybrid_retriever.py  # Main retriever combining all methods
+│   ├── ontology_retriever.py # Semantic search over ontology definitions
 │   ├── embeddings.py        # Sentence transformers + FAISS
 │   ├── bm25.py              # BM25 with pattern boosting
 │   └── patterns.py          # Query pattern inference
@@ -290,7 +314,8 @@ nl2sparql/
 │   └── generator.py         # Training data generator
 └── data/
     ├── sparql_queries_final.json  # Training dataset
-    └── test_dataset.json          # Evaluation test cases
+    ├── test_dataset.json          # Evaluation test cases
+    └── ontology.json              # Ontology catalog (classes & properties)
 ```
 
 ## LiITA Knowledge Base Architecture

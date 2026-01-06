@@ -185,11 +185,11 @@ The basic pipeline has limitations:
 
 1. **Blind retries**: When a query fails, the fix loop just sends the error back to the LLM. It doesn't analyze why the failure happened or consider alternative approaches.
 
-2. **No execution feedback**: The basic system validates syntax but doesn't always verify that results make semantic sense.
+2. **Static retrieval**: Examples are retrieved once at the start. If the first attempt fails, we don't reconsider which examples might be more helpful.
 
-3. **Static retrieval**: Examples are retrieved once at the start. If the first attempt fails, we don't reconsider which examples might be more helpful.
+3. **No schema exploration**: When queries return empty results, there's no mechanism to discover what properties or patterns actually exist in the data.
 
-4. **No schema exploration**: When queries return empty results, there's no mechanism to discover what properties or patterns actually exist in the data.
+4. **No auto-correction**: Common issues like case-sensitive filters or variable reuse bugs require regeneration rather than targeted fixes.
 
 ### The Agent Workflow
 
@@ -211,12 +211,19 @@ analyze → plan → retrieve → generate → execute → verify
 | `analyze` | Detect patterns, complexity, dialects needed | Fast |
 | `plan` | Decompose complex queries into sub-tasks | Fast |
 | `retrieve` | Get relevant examples and constraints | - |
-| `generate` | Generate SPARQL query | Default (capable) |
-| `execute` | Run query against endpoint | - |
-| `verify` | Check results semantically | Fast |
+| `generate` | Generate SPARQL with mandatory prefixes and domain rules | Default (capable) |
+| `execute` | Run query, auto-fix case-sensitive filters, detect variable reuse | - |
+| `verify` | Check for technical errors only (syntax, execution) | - |
 | `refine` | Record failure, prepare for retry | - |
 | `explore` | Discover schema when stuck | - |
 | `output` | Prepare final result | - |
+
+**Important**: The `verify` node intentionally does NOT perform semantic verification of results. This is a deliberate design choice because:
+1. LLMs lack domain knowledge (e.g., dialect translations can be identical to Italian)
+2. Emotion lexicons have complex associations that appear "wrong" to naive analysis
+3. Over-aggressive verification caused regeneration which introduced new bugs
+
+If a query executes successfully and returns results, we trust the retrieval-based generation.
 
 ### Model Tiers
 
@@ -227,6 +234,25 @@ The agent uses different model tiers for different tasks to balance cost and cap
 - **Default tier**: Used for SPARQL generation, which requires precise syntax and domain knowledge. Uses more capable models like `gpt-4.1` or `claude-sonnet-4`.
 
 If a specific model is provided, it's used for all operations.
+
+### Generation Rules
+
+The `generate` node uses a detailed system prompt with mandatory rules to prevent common LLM mistakes:
+
+1. **Mandatory Prefixes**: Exact URIs are provided to prevent mistakes like using `<http://w3id.org/elita/ontology#>` instead of `<http://w3id.org/elita/>`
+
+2. **Translation Direction**: Always Italian → Dialect (never reverse)
+
+3. **Multi-Dialect Variables**: Use DIFFERENT Italian lexical entry variables for each dialect
+
+4. **Variable Typing**: Never reuse a variable for both URI and literal values
+
+5. **SERVICE Block Rules**:
+   - Only for CompL-it (definitions, semantic relations)
+   - Never for ELITA emotions or dialect translations
+   - Only valid endpoint: `https://klab.ilc.cnr.it/graphdb-compl-it/`
+
+6. **LiITA-to-CompL-it Linking**: Use same variable name for natural joins (see Cross-Endpoint Linking section)
 
 ### Self-Correction Loop
 
@@ -239,18 +265,79 @@ When verification fails, the agent enters a refinement loop:
 
 This is more effective than blind retries because the LLM sees the full context of what went wrong.
 
-### Schema Exploration
+### Auto-Correction Features
 
-When a query returns zero results and the agent hasn't explored the schema yet, it can query the endpoint to discover available properties:
+The `execute` node includes targeted fixes that don't require full query regeneration:
+
+**Variable Reuse Detection**
+
+A common LLM mistake is reusing a variable for both a URI and a literal value:
 
 ```sparql
-SELECT DISTINCT ?property WHERE {
-    ?s ?property ?o .
-    FILTER(STRSTARTS(STR(?property), "http://lila-erc.eu/ontologies/lila/"))
-} LIMIT 30
+# WRONG - ?hypernymWord is both a URI (subject) and a literal (writtenRep)
+?hypernymWord ontolex:sense ?sense ;
+              ontolex:canonicalForm [ ontolex:writtenRep ?hypernymWord ] .
 ```
 
-This helps when the LLM generates queries with incorrect property names. The discovered properties are included in subsequent generation attempts.
+The agent detects this pattern before execution and returns an error that triggers regeneration with a clear explanation.
+
+**Case-Sensitive Filter Auto-Fix**
+
+When a query returns zero results, the agent checks for case-sensitive string filters:
+
+```sparql
+# Original (fails for "Rabbia")
+FILTER(STR(?emotionLabel) = "rabbia")
+
+# Auto-fixed (matches "Rabbia", "rabbia", "RABBIA")
+FILTER(REGEX(STR(?emotionLabel), "^rabbia$", "i"))
+```
+
+If the fixed query returns results, it's used automatically without regeneration. This preserves the query structure while fixing the filter.
+
+### Schema Exploration (Ontology Retrieval)
+
+When a query returns zero results and the agent hasn't explored the schema yet, it uses **semantic search over an ontology catalog** to discover relevant classes and properties.
+
+Unlike simply querying the endpoint for property URIs (which tells the LLM nothing about meaning), the ontology retriever provides:
+
+1. **Descriptions**: What each property/class means (e.g., "hypernym: A term with a broader meaning")
+2. **Domain/Range**: What types of subjects and objects the property connects
+3. **Inverse properties**: Related properties (e.g., hypernym ↔ hyponym)
+4. **SPARQL patterns**: Example usage
+
+**Example**: For "What is a more general term for 'dog'?", the retriever finds:
+
+```
+### Property: lexinfo:hypernym
+- URI: <http://www.lexinfo.net/ontology/3.0/lexinfo#hypernym>
+- Description: A term with a broader meaning
+- Domain (subject type): LexicalSense
+- Range (object type): LexicalSense
+- Inverse property: hyponym
+- SPARQL pattern: ?subject lexinfo:hypernym ?object
+```
+
+This is far more useful than just returning `http://www.lexinfo.net/ontology/3.0/lexinfo#hypernym`.
+
+**Implementation**:
+
+```python
+from nl2sparql.retrieval import OntologyRetriever
+
+retriever = OntologyRetriever()
+results = retriever.retrieve_properties("broader meaning", top_k=5)
+prompt_text = retriever.format_for_prompt(results)
+```
+
+The ontology catalog (`data/ontology.json`) includes classes and properties from:
+- OntoLex-Lemon (ontolex, vartrans, lime, synsem)
+- LexInfo (lexinfo)
+- SKOS (skos)
+- LiLA (lila)
+- ELITA (elita)
+- MARL (marl)
+- Dublin Core (dcterms)
 
 ### State Management
 
@@ -271,6 +358,10 @@ class NL2SPARQLState(TypedDict):
     requires_service: bool
     dialects_needed: list[str]
 
+    # Retrieval
+    retrieved_examples: list[dict]
+    relevant_constraints: str
+
     # Generation
     generated_sparql: str
     generation_attempts: int
@@ -282,9 +373,17 @@ class NL2SPARQLState(TypedDict):
     # Refinement (accumulates across attempts)
     refinement_history: Annotated[list[dict], add]
 
+    # Schema exploration
+    discovered_properties: list[str]
+    schema_context: str  # Detailed ontology descriptions for prompt
+    schema_explored: bool
+
     # Output
     final_sparql: str
     confidence: float
+
+    # Fallback
+    first_valid_sparql: str  # First syntactically valid query (returned if refinement doesn't improve)
 ```
 
 The `refinement_history` uses LangGraph's `Annotated[..., add]` to accumulate entries across iterations rather than replacing them.
@@ -355,6 +454,33 @@ SERVICE <https://klab.ilc.cnr.it/graphdb-compl-it/> {
 ```
 
 This is more efficient than joining on string values and was incorporated into the semantic constraints after we identified it from working query examples.
+
+### LiITA-to-CompL-it Linking Pattern
+
+When starting from a LiITA lemma and needing CompL-it data (definitions, semantic relations), use the **same variable name** for `writtenRep` in both blocks to create a natural join:
+
+```sparql
+# CORRECT - Same variable ?writtenRep creates automatic join
+GRAPH <http://liita.it/data> {
+    ?lemma a lila:Lemma ;
+           ontolex:writtenRep ?writtenRep .
+}
+SERVICE <https://klab.ilc.cnr.it/graphdb-compl-it/> {
+    ?word ontolex:canonicalForm [ ontolex:writtenRep ?writtenRep ] ;
+          ontolex:sense [ skos:definition ?definition ] .
+}
+
+# WRONG - Causes "variable not assigned" error
+GRAPH <http://liita.it/data> {
+    ?lemma a lila:Lemma ; ontolex:writtenRep ?lilaRep .
+}
+SERVICE <https://klab.ilc.cnr.it/graphdb-compl-it/> {
+    ?word ontolex:canonicalForm [ ontolex:writtenRep ?complRep ] .
+    FILTER(STR(?complRep) = STR(?lilaRep))  # ERROR: ?lilaRep not visible inside SERVICE!
+}
+```
+
+Variables bound outside a SERVICE block are NOT visible inside for FILTER comparisons. The shared variable name approach avoids this limitation by letting the SPARQL engine handle the join.
 
 ---
 

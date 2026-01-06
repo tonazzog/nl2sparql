@@ -13,11 +13,11 @@
     {
       "id": "T001",
       "category": "single_pattern",
-      "patterns": ["EMOTION_LEXICON"],
-      "nl_it": "Quali lemmi esprimono tristezza?",
-      "nl_en": "Which lemmas express sadness?",
+      "patterns": [ "EMOTION_LEXICON" ],
+      "nl_it": "Quali lemmi esprimono 'tristezza'?",
+      "nl_en": "Which lemmas express 'tristezza' (sadness)?",
       "description": "Basic emotion query",
-      "expected_components": ["GRAPH <http://w3id.org/elita>", "elita:HasEmotion", "emotionEntry"]
+      "expected_components": [ "GRAPH <http://w3id.org/elita>", "elita:HasEmotion", "emotionEntry" ]
     },
     {
       "id": "T002",
@@ -31,74 +31,74 @@
     {
       "id": "T003",
       "category": "single_pattern",
-      "patterns": ["TRANSLATION"],
+      "patterns": [ "TRANSLATION" ],
       "nl_it": "Qual è la traduzione siciliana di 'casa'?",
-      "nl_en": "What is the Sicilian translation of 'house'?",
+      "nl_en": "What is the Sicilian translation of 'casa' (house)?",
       "description": "Basic Sicilian translation",
-      "expected_components": ["vartrans:translatableAs", "DialettoSiciliano", "dcterms:isPartOf"]
+      "expected_components": [ "vartrans:translatableAs", "DialettoSiciliano", "dcterms:isPartOf" ]
     },
     {
       "id": "T004",
       "category": "single_pattern",
-      "patterns": ["TRANSLATION"],
+      "patterns": [ "TRANSLATION" ],
       "nl_it": "Trova la traduzione in parmigiano di 'acqua'",
-      "nl_en": "Find the Parmigiano translation of 'water'",
+      "nl_en": "Find the Parmigiano translation of 'acqua' (water)",
       "description": "Basic Parmigiano translation",
-      "expected_components": ["vartrans:translatableAs", "DialettoParmigiano", "lime:entry"]
+      "expected_components": [ "vartrans:translatableAs", "DialettoParmigiano", "lime:entry" ]
     },
     {
       "id": "T005",
       "category": "single_pattern",
-      "patterns": ["MULTI_TRANSLATION"],
+      "patterns": [ "MULTI_TRANSLATION" ],
       "nl_it": "Mostra le traduzioni di 'pane' in siciliano e parmigiano",
-      "nl_en": "Show translations of 'bread' in both Sicilian and Parmigiano",
+      "nl_en": "Show translations of 'pane' (bread) in both Sicilian and Parmigiano",
       "description": "Multiple dialect translations",
-      "expected_components": ["DialettoSiciliano", "DialettoParmigiano", "vartrans:translatableAs"]
+      "expected_components": [ "DialettoSiciliano", "DialettoParmigiano", "vartrans:translatableAs" ]
     },
     {
       "id": "T006",
       "category": "single_pattern",
-      "patterns": ["SENSE_DEFINITION"],
+      "patterns": [ "SENSE_DEFINITION" ],
       "nl_it": "Qual è la definizione di 'amore'?",
-      "nl_en": "What is the definition of 'love'?",
+      "nl_en": "What is the definition of 'amore' (love)?",
       "description": "Basic definition query",
-      "expected_components": ["SERVICE", "skos:definition", "compl-it"]
+      "expected_components": [ "SERVICE", "skos:definition", "compl-it" ]
     },
     {
       "id": "T007",
       "category": "single_pattern",
-      "patterns": ["SENSE_COUNT"],
+      "patterns": [ "SENSE_COUNT" ],
       "nl_it": "Quanti sensi ha la parola 'banco'?",
-      "nl_en": "How many senses does the word 'bank' have?",
+      "nl_en": "How many senses does the word 'banco' have?",
       "description": "Count word senses (polysemy)",
-      "expected_components": ["SERVICE", "COUNT", "ontolex:sense"]
+      "expected_components": [ "SERVICE", "COUNT", "ontolex:sense" ]
     },
     {
       "id": "T008",
       "category": "single_pattern",
-      "patterns": ["SEMANTIC_RELATION"],
+      "patterns": [ "SEMANTIC_RELATION" ],
       "nl_it": "Quali sono gli iperonimi di 'cane'?",
-      "nl_en": "What are the hypernyms of 'dog'?",
+      "nl_en": "What are the hypernyms of 'cane' (dog)?",
       "description": "Find hypernyms (more general terms)",
-      "expected_components": ["SERVICE", "lexinfo:hyponym"]
+      "expected_components": [ "SERVICE", "lexinfo:hyponym" ]
     },
     {
       "id": "T009",
       "category": "single_pattern",
-      "patterns": ["SEMANTIC_RELATION"],
+      "patterns": [ "SEMANTIC_RELATION" ],
       "nl_it": "Trova gli iponimi di 'veicolo'",
-      "nl_en": "Find the hyponyms of 'vehicle'",
+      "nl_en": "Find the hyponyms of 'veicolo' (vehicle)",
       "description": "Find hyponyms (more specific terms)",
-      "expected_components": ["SERVICE", "lexinfo:hypernym"]
+      "expected_components": [ "SERVICE", "lexinfo:hypernym" ]
     },
     {
       "id": "T010",
       "category": "single_pattern",
-      "patterns": ["SEMANTIC_RELATION"],
-      "nl_it": "Quali sono le parti del corpo?",
-      "nl_en": "What are the parts of the body?",
+      "patterns": [ "SEMANTIC_RELATION" ],
+      "nl_it": "Quali sono le parti del 'corpo'?",
+      "nl_en": "What are the parts of 'corpo' (body)?",
       "description": "Find meronyms (parts)",
-      "expected_components": ["SERVICE", "lexinfo:partMeronym"]
+      "expected_components": [ "SERVICE", "lexinfo:partMeronym" ]
     },
     {
       "id": "T011",
@@ -130,11 +130,11 @@
     {
       "id": "T014",
       "category": "single_pattern",
-      "patterns": ["MORPHO_REGEX"],
+      "patterns": [ "MORPHO_REGEX" ],
       "nl_it": "Quali parole finiscono con 'zione'?",
-      "nl_en": "Which words end with 'tion'?",
+      "nl_en": "Which words end with 'zione'?",
       "description": "Suffix pattern matching",
-      "expected_components": ["FILTER", "REGEX", "zione$"]
+      "expected_components": [ "FILTER", "REGEX", "zione$" ]
     },
     {
       "id": "T015",
@@ -157,20 +157,20 @@
     {
       "id": "T017",
       "category": "combination_2",
-      "patterns": ["EMOTION_LEXICON", "POS_FILTER"],
-      "nl_it": "Quali sostantivi esprimono gioia?",
-      "nl_en": "Which nouns express joy?",
+      "patterns": [ "EMOTION_LEXICON", "POS_FILTER" ],
+      "nl_it": "Quali sostantivi esprimono l'emozione 'gioia?",
+      "nl_en": "Which nouns express the emotion 'gioia' (joy)?",
       "description": "Emotion + POS filter",
-      "expected_components": ["elita:HasEmotion", "lila:hasPOS", "lila:noun", "gioia"]
+      "expected_components": [ "elita:HasEmotion", "lila:hasPOS", "lila:noun", "gioia" ]
     },
     {
       "id": "T018",
       "category": "combination_2",
-      "patterns": ["EMOTION_LEXICON", "TRANSLATION"],
-      "nl_it": "Trova le traduzioni siciliane di parole che esprimono paura",
-      "nl_en": "Find Sicilian translations of words that express fear",
+      "patterns": [ "EMOTION_LEXICON", "TRANSLATION" ],
+      "nl_it": "Trova le traduzioni siciliane di parole che esprimono 'paura'",
+      "nl_en": "Find Sicilian translations of words that express 'paura' (fear)",
       "description": "Emotion + Translation",
-      "expected_components": ["elita:HasEmotion", "vartrans:translatableAs", "DialettoSiciliano", "paura"]
+      "expected_components": [ "elita:HasEmotion", "vartrans:translatableAs", "DialettoSiciliano", "paura" ]
     },
     {
       "id": "T019",
@@ -186,18 +186,18 @@
       "category": "combination_2",
       "patterns": ["SEMANTIC_RELATION", "SENSE_DEFINITION"],
       "nl_it": "Trova gli iponimi di 'animale' con le loro definizioni",
-      "nl_en": "Find hyponyms of 'animal' with their definitions",
+      "nl_en": "Find hyponyms of 'animale' (animal) with their definitions",
       "description": "Semantic relation + Definition",
       "expected_components": ["SERVICE", "lexinfo:hypernym", "skos:definition"]
     },
     {
       "id": "T021",
       "category": "combination_2",
-      "patterns": ["MORPHO_REGEX", "SENSE_DEFINITION"],
+      "patterns": [ "MORPHO_REGEX", "SENSE_DEFINITION" ],
       "nl_it": "Trova parole che finiscono con 'mente' e le loro definizioni",
-      "nl_en": "Find words ending with 'ly' and their definitions",
+      "nl_en": "Find words ending with 'mente' and their definitions",
       "description": "Morphology + Definition",
-      "expected_components": ["SERVICE", "REGEX", "skos:definition", "mente$"]
+      "expected_components": [ "SERVICE", "REGEX", "skos:definition", "mente$" ]
     },
     {
       "id": "T022",
@@ -220,56 +220,56 @@
     {
       "id": "T024",
       "category": "combination_2",
-      "patterns": ["COUNT_ENTITIES", "EMOTION_LEXICON"],
-      "nl_it": "Quante parole esprimono tristezza?",
-      "nl_en": "How many words express sadness?",
+      "patterns": [ "COUNT_ENTITIES", "EMOTION_LEXICON" ],
+      "nl_it": "Quante parole esprimono 'tristezza'?",
+      "nl_en": "How many words express 'tristezza' (sadness)?",
       "description": "Count + Emotion",
-      "expected_components": ["COUNT", "elita:HasEmotion", "tristezza"]
+      "expected_components": [ "COUNT", "elita:HasEmotion", "tristezza" ]
     },
     {
       "id": "T025",
       "category": "combination_3",
-      "patterns": ["EMOTION_LEXICON", "SENSE_DEFINITION", "TRANSLATION"],
+      "patterns": [ "EMOTION_LEXICON", "SENSE_DEFINITION", "TRANSLATION" ],
       "nl_it": "Trova parole che esprimono gioia, con definizione e traduzione siciliana",
-      "nl_en": "Find words expressing joy, with definition and Sicilian translation",
+      "nl_en": "Find words expressing 'gioia' (joy), with definition and Sicilian translation",
       "description": "Emotion + Definition + Translation",
-      "expected_components": ["elita:HasEmotion", "SERVICE", "skos:definition", "vartrans:translatableAs"]
+      "expected_components": [ "elita:HasEmotion", "SERVICE", "skos:definition", "vartrans:translatableAs" ]
     },
     {
       "id": "T026",
       "category": "combination_3",
       "patterns": ["SEMANTIC_RELATION", "POS_FILTER", "SENSE_DEFINITION"],
       "nl_it": "Trova gli iponimi sostantivi di 'cibo' con le definizioni",
-      "nl_en": "Find noun hyponyms of 'food' with definitions",
+      "nl_en": "Find noun hyponyms of 'cibo' (food) with definitions",
       "description": "Semantic + POS + Definition",
       "expected_components": ["SERVICE", "lexinfo:hypernym", "lila:noun", "skos:definition"]
     },
     {
       "id": "T027",
       "category": "combination_3",
-      "patterns": ["MORPHO_REGEX", "POS_FILTER", "SENSE_DEFINITION"],
+      "patterns": [ "MORPHO_REGEX", "POS_FILTER", "SENSE_DEFINITION" ],
       "nl_it": "Trova sostantivi che finiscono con 'zione' e le loro definizioni",
-      "nl_en": "Find nouns ending with 'tion' and their definitions",
+      "nl_en": "Find nouns ending with 'zione' and their definitions",
       "description": "Morphology + POS + Definition",
-      "expected_components": ["SERVICE", "REGEX", "zione$", "lila:noun", "skos:definition"]
+      "expected_components": [ "SERVICE", "REGEX", "zione$", "lila:noun", "skos:definition" ]
     },
     {
       "id": "T028",
       "category": "combination_3",
-      "patterns": ["EMOTION_LEXICON", "POS_FILTER", "TRANSLATION"],
-      "nl_it": "Trova verbi che esprimono rabbia con traduzione parmigiana",
-      "nl_en": "Find verbs expressing anger with Parmigiano translation",
+      "patterns": [ "EMOTION_LEXICON", "POS_FILTER", "TRANSLATION" ],
+      "nl_it": "Trova verbi che esprimono 'rabbia' con traduzione parmigiana",
+      "nl_en": "Find verbs expressing 'rabbia' (anger) with Parmigiano translation",
       "description": "Emotion + POS + Translation",
-      "expected_components": ["elita:HasEmotion", "lila:verb", "vartrans:translatableAs", "DialettoParmigiano"]
+      "expected_components": [ "elita:HasEmotion", "lila:verb", "vartrans:translatableAs", "DialettoParmigiano" ]
     },
     {
       "id": "T029",
       "category": "complex",
-      "patterns": ["SEMANTIC_RELATION", "EMOTION_LEXICON", "SENSE_DEFINITION", "TRANSLATION"],
+      "patterns": [ "SEMANTIC_RELATION", "EMOTION_LEXICON", "SENSE_DEFINITION", "TRANSLATION" ],
       "nl_it": "Trova le parole italiane che esprimono emozioni positive e hanno una relazione semantica di iponimo con 'sentimento', includendo le loro definizioni e le traduzioni in siciliano",
-      "nl_en": "Find Italian words that express positive emotions and have a hyponym relation with 'feeling', including their definitions and Sicilian translations",
+      "nl_en": "Find Italian words that express positive emotions and have a hyponym relation with 'sentimento' (feeling), including their definitions and Sicilian translations",
       "description": "Complex multi-pattern query",
-      "expected_components": ["SERVICE", "elita:HasEmotion", "lexinfo:hyponym", "skos:definition", "vartrans:translatableAs"]
+      "expected_components": [ "SERVICE", "elita:HasEmotion", "lexinfo:hyponym", "skos:definition", "vartrans:translatableAs" ]
     },
     {
       "id": "T030",
@@ -283,27 +283,27 @@
     {
       "id": "T031",
       "category": "single_pattern",
-      "patterns": ["SEMANTIC_RELATION"],
+      "patterns": [ "SEMANTIC_RELATION" ],
       "nl_it": "Qual è l'olonimo di 'braccio'?",
-      "nl_en": "What is the holonym of 'arm'?",
+      "nl_en": "What is the holonym of 'braccio' (arm)?",
       "description": "Find holonym (the whole)",
-      "expected_components": ["SERVICE", "lexinfo:partMeronym"]
+      "expected_components": [ "SERVICE", "lexinfo:partMeronym" ]
     },
     {
       "id": "T032",
       "category": "combination_2",
-      "patterns": ["SEMANTIC_RELATION", "TRANSLATION"],
+      "patterns": [ "SEMANTIC_RELATION", "TRANSLATION" ],
       "nl_it": "Trova i meronimi di 'corpo' con traduzione siciliana",
-      "nl_en": "Find meronyms of 'body' with Sicilian translation",
+      "nl_en": "Find meronyms of 'corpo' (body) with Sicilian translation",
       "description": "Meronym + Translation",
-      "expected_components": ["SERVICE", "lexinfo:partMeronym", "vartrans:translatableAs", "DialettoSiciliano"]
+      "expected_components": [ "SERVICE", "lexinfo:partMeronym", "vartrans:translatableAs", "DialettoSiciliano" ]
     },
     {
       "id": "T033",
       "category": "single_pattern",
       "patterns": ["MORPHO_REGEX"],
       "nl_it": "Trova parole che contengono 'amor'",
-      "nl_en": "Find words containing 'love'",
+      "nl_en": "Find words containing 'amor'",
       "description": "Contains pattern matching",
       "expected_components": ["FILTER", "REGEX", "amor"]
     },
