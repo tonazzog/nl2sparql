@@ -49,12 +49,16 @@ class NL2SPARQLState(TypedDict):
 
     # Schema exploration
     discovered_properties: list[str]
+    schema_context: str  # Detailed ontology descriptions for prompt
     schema_explored: bool
 
     # Output
     final_sparql: str
     confidence: float
     explanation: str
+
+    # Fallback: first syntactically valid query (used if refinement doesn't improve)
+    first_valid_sparql: str
 
 
 def create_initial_state(
@@ -99,9 +103,12 @@ def create_initial_state(
         refinement_history=[],
         # Schema
         discovered_properties=[],
+        schema_context="",
         schema_explored=False,
         # Output
         final_sparql="",
         confidence=0.0,
         explanation="",
+        # Fallback
+        first_valid_sparql="",
     )

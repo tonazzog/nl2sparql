@@ -170,8 +170,14 @@ class NL2SPARQLAgent:
             if final_state["validation_errors"]:
                 print(f"Errors: {final_state['validation_errors']}")
 
+        # Priority: final_sparql → first_valid_sparql → generated_sparql
+        sparql = (
+            final_state["final_sparql"]
+            or final_state.get("first_valid_sparql")
+            or final_state["generated_sparql"]
+        )
         return {
-            "sparql": final_state["final_sparql"] or final_state["generated_sparql"],
+            "sparql": sparql,
             "confidence": final_state["confidence"],
             "attempts": final_state["generation_attempts"],
             "result_count": final_state["result_count"],
@@ -207,8 +213,14 @@ class NL2SPARQLAgent:
             print(f"Valid: {final_state['is_valid']}")
             print(f"Results: {final_state['result_count']}")
 
+        # Priority: final_sparql → first_valid_sparql → generated_sparql
+        sparql = (
+            final_state["final_sparql"]
+            or final_state.get("first_valid_sparql")
+            or final_state["generated_sparql"]
+        )
         return {
-            "sparql": final_state["final_sparql"] or final_state["generated_sparql"],
+            "sparql": sparql,
             "confidence": final_state["confidence"],
             "attempts": final_state["generation_attempts"],
             "result_count": final_state["result_count"],
@@ -260,8 +272,14 @@ class NL2SPARQLAgent:
         Returns:
             Dictionary with the final result (same format as translate())
         """
+        # Priority: final_sparql → first_valid_sparql → generated_sparql
+        sparql = (
+            accumulated_state.get("final_sparql")
+            or accumulated_state.get("first_valid_sparql")
+            or accumulated_state.get("generated_sparql")
+        )
         return {
-            "sparql": accumulated_state.get("final_sparql") or accumulated_state.get("generated_sparql"),
+            "sparql": sparql,
             "confidence": accumulated_state.get("confidence", 0.0),
             "attempts": accumulated_state.get("generation_attempts", 0),
             "result_count": accumulated_state.get("result_count", 0),
