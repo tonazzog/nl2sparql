@@ -918,5 +918,198 @@ def generate_synthetic_command(
             click.echo(f"  {method}: {count}")
 
 
+# ========== MCP SERVER COMMANDS ==========
+
+@main.group()
+def mcp():
+    """
+    MCP (Model Context Protocol) server commands.
+
+    The MCP server exposes NL2SPARQL capabilities as tools that can be
+    called by MCP-compatible LLM clients like Claude Desktop.
+
+    \b
+    Examples:
+        nl2sparql mcp serve
+        nl2sparql mcp serve --provider anthropic
+        nl2sparql mcp config
+    """
+    pass
+
+
+MCP_PROVIDERS = ["openai", "anthropic", "mistral", "gemini", "ollama"]
+
+
+@mcp.command("serve")
+@click.option(
+    "--provider", "-p",
+    type=click.Choice(MCP_PROVIDERS),
+    default="openai",
+    help="LLM provider for SPARQL generation.",
+)
+@click.option(
+    "--model", "-m",
+    type=str,
+    default=None,
+    help="Model name (uses provider default if not specified).",
+)
+@click.option(
+    "--endpoint",
+    type=str,
+    default=None,
+    help="SPARQL endpoint URL (default: LiITA endpoint).",
+)
+@click.option(
+    "--timeout",
+    type=int,
+    default=30,
+    help="Query timeout in seconds.",
+)
+def mcp_serve(
+    provider: str,
+    model: Optional[str],
+    endpoint: Optional[str],
+    timeout: int,
+):
+    """
+    Start the MCP server with stdio transport.
+
+    The server exposes NL2SPARQL tools for:
+    - Full NL-to-SPARQL translation
+    - Pattern inference and example retrieval
+    - Ontology search
+    - SPARQL validation and execution
+    - Query auto-fixing utilities
+
+    \b
+    For use with Claude Desktop, add to claude_desktop_config.json:
+    {
+        "mcpServers": {
+            "nl2sparql": {
+                "command": "nl2sparql",
+                "args": ["mcp", "serve", "--provider", "anthropic"]
+            }
+        }
+    }
+
+    \b
+    Examples:
+        nl2sparql mcp serve
+        nl2sparql mcp serve --provider anthropic
+        nl2sparql mcp serve --provider ollama --model llama3
+        nl2sparql mcp serve --provider openai --model gpt-4.1
+    """
+    try:
+        from .mcp import NL2SPARQLMCPServer
+        from .mcp.server import MCPConfig
+    except ImportError as e:
+        click.secho(
+            f"MCP server requires additional dependencies: {e}\n"
+            "Install with: pip install liita-nl2sparql[mcp]",
+            fg="red",
+            err=True
+        )
+        sys.exit(1)
+
+    import asyncio
+
+    # Build config
+    config = MCPConfig(
+        provider=provider,
+        model=model,
+        endpoint=endpoint or LIITA_ENDPOINT,
+        timeout=timeout,
+    )
+
+    # Run server
+    server = NL2SPARQLMCPServer(config)
+    asyncio.run(server.run())
+
+
+@mcp.command("config")
+@click.option(
+    "--provider", "-p",
+    type=click.Choice(MCP_PROVIDERS),
+    default=None,
+    help="Show config for specific provider.",
+)
+def mcp_config(provider: Optional[str]):
+    """
+    Show MCP server configuration.
+
+    Displays available providers, models, and environment variables
+    used for configuration.
+
+    \b
+    Examples:
+        nl2sparql mcp config
+        nl2sparql mcp config --provider anthropic
+    """
+    click.echo("NL2SPARQL MCP Server Configuration")
+    click.echo("=" * 50)
+    click.echo()
+
+    # Show environment variables
+    click.secho("Environment Variables:", fg="cyan", bold=True)
+    click.echo("  NL2SPARQL_PROVIDER  - Default LLM provider")
+    click.echo("  NL2SPARQL_MODEL     - Default model name")
+    click.echo("  NL2SPARQL_ENDPOINT  - SPARQL endpoint URL")
+    click.echo("  NL2SPARQL_TIMEOUT   - Query timeout (seconds)")
+    click.echo()
+    click.echo("  Provider API keys:")
+    click.echo("    OPENAI_API_KEY")
+    click.echo("    ANTHROPIC_API_KEY")
+    click.echo("    MISTRAL_API_KEY")
+    click.echo("    GEMINI_API_KEY")
+    click.echo("    (Ollama runs locally, no API key needed)")
+    click.echo()
+
+    # Show providers
+    if provider:
+        providers_to_show = [provider]
+    else:
+        providers_to_show = list(AVAILABLE_PROVIDERS.keys())
+
+    click.secho("Available Providers and Models:", fg="cyan", bold=True)
+    for p in providers_to_show:
+        if p in AVAILABLE_PROVIDERS:
+            info = AVAILABLE_PROVIDERS[p]
+            default = info.get("default_model", "")
+            models = info.get("models", [])
+
+            click.echo()
+            click.secho(f"  {p}:", fg="yellow", bold=True)
+            for m in models:
+                if m == default:
+                    click.echo(f"    - {m} (default)")
+                else:
+                    click.echo(f"    - {m}")
+
+    click.echo()
+    click.secho("MCP Tools:", fg="cyan", bold=True)
+    click.echo("  translate          - Full NL-to-SPARQL translation")
+    click.echo("  infer_patterns     - Detect query patterns")
+    click.echo("  retrieve_examples  - Get similar query examples")
+    click.echo("  search_ontology    - Search ontology catalog")
+    click.echo("  get_constraints    - Get domain constraints")
+    click.echo("  validate_sparql    - Validate SPARQL query")
+    click.echo("  execute_sparql     - Execute query against endpoint")
+    click.echo("  fix_case_sensitivity - Fix case-sensitive filters")
+    click.echo("  check_variable_reuse - Check for variable reuse bugs")
+
+    click.echo()
+    click.secho("Claude Desktop Configuration:", fg="cyan", bold=True)
+    click.echo('  Add to claude_desktop_config.json:')
+    click.echo()
+    click.echo('  {')
+    click.echo('    "mcpServers": {')
+    click.echo('      "nl2sparql": {')
+    click.echo('        "command": "nl2sparql",')
+    click.echo('        "args": ["mcp", "serve", "--provider", "anthropic"]')
+    click.echo('      }')
+    click.echo('    }')
+    click.echo('  }')
+
+
 if __name__ == "__main__":
     main()

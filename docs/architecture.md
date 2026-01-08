@@ -484,9 +484,177 @@ Variables bound outside a SERVICE block are NOT visible inside for FILTER compar
 
 ---
 
+## Component 6: MCP Server
+
+The MCP (Model Context Protocol) server provides a third way to access NL2SPARQL capabilities, alongside the basic `NL2SPARQL` class and the agentic `NL2SPARQLAgent`.
+
+### Why MCP?
+
+MCP is a protocol that allows LLM clients (like Claude Desktop) to call external tools. The MCP server exposes NL2SPARQL's capabilities as tools that any MCP-compatible client can use.
+
+**Key differences from the basic and agentic approaches:**
+
+| Aspect | Basic NL2SPARQL | Agentic (LangGraph) | MCP Server |
+|--------|-----------------|---------------------|------------|
+| Control flow | User code | LangGraph workflow | External LLM client |
+| LLM calls | Single (generate + optional fix) | Multiple (analyze, plan, generate, verify) | Configured on server |
+| Iteration | Fixed retry loop | Self-correcting with refinement | Client-controlled |
+| Integration | Python API | Python API | Claude Desktop, any MCP client |
+
+### MCP Tools
+
+The server exposes 9 tools:
+
+**Translation:**
+- `translate` - Full NL-to-SPARQL translation using the configured LLM
+
+**Retrieval:**
+- `infer_patterns` - Detect query patterns from natural language
+- `retrieve_examples` - Get similar examples for few-shot learning
+- `search_ontology` - Semantic search over ontology catalog
+- `get_constraints` - Get domain constraints for patterns
+
+**Validation:**
+- `validate_sparql` - Comprehensive validation (syntax, semantic, endpoint)
+- `execute_sparql` - Execute query against LiITA endpoint
+
+**Utilities:**
+- `fix_case_sensitivity` - Auto-fix case-sensitive filters
+- `check_variable_reuse` - Detect variable reuse bugs
+
+### MCP Resources
+
+The server provides read-only resources:
+
+- `liita://ontology/catalog` - Full ontology catalog (JSON)
+- `liita://constraints/base` - Base system prompt and prefixes
+- `liita://config` - Current server configuration
+
+### Server Architecture
+
+```
+NL2SPARQLMCPServer
+├── config: MCPConfig          # Provider, model, endpoint settings
+├── translator: NL2SPARQL      # Lazy-loaded, for translate tool
+├── hybrid_retriever           # Lazy-loaded, for retrieve_examples
+├── ontology_retriever         # Lazy-loaded, for search_ontology
+└── server: mcp.Server         # MCP protocol handler
+    ├── list_tools()           # Tool definitions
+    ├── call_tool()            # Tool execution
+    ├── list_resources()       # Resource definitions
+    └── read_resource()        # Resource content
+```
+
+Components are lazy-loaded to minimize startup time. The embedding models and retrievers are only initialized when first accessed.
+
+### Configuration
+
+The server is configured via CLI options or environment variables:
+
+```bash
+# CLI options
+nl2sparql mcp serve --provider anthropic --model claude-sonnet-4-20250514
+
+# Environment variables
+NL2SPARQL_PROVIDER=anthropic
+NL2SPARQL_MODEL=claude-sonnet-4-20250514
+NL2SPARQL_ENDPOINT=https://liita.it/sparql
+NL2SPARQL_TIMEOUT=30
+```
+
+### When to Use MCP
+
+| Scenario | Recommended Approach |
+|----------|---------------------|
+| Python scripting | Basic `NL2SPARQL` |
+| Complex queries needing iteration | Agentic `NL2SPARQLAgent` |
+| Claude Desktop integration | MCP Server |
+| External LLM client integration | MCP Server |
+| Batch processing | Basic `NL2SPARQL` |
+| Interactive exploration | MCP Server with Claude |
+
+### Claude Desktop Example
+
+When configured in Claude Desktop:
+
+1. User asks: "Find Italian nouns expressing sadness"
+2. Claude calls `translate(question="Find Italian nouns expressing sadness")`
+3. Server uses configured LLM to generate SPARQL
+4. Returns validated query with result count
+5. Claude presents results to user
+
+The MCP approach gives the external LLM full control over the workflow while the server provides domain expertise.
+
+---
+
+## Component 7: Gradio Web UI
+
+The Gradio web interface provides a user-friendly way to interact with NL2SPARQL without writing code or using the command line.
+
+### Why Gradio?
+
+While the MCP server integrates with Claude Desktop, some users prefer:
+
+1. **Direct browser access**: No desktop application needed
+2. **Visual feedback**: See patterns, validation, and results in a structured layout
+3. **Multiple tools in one interface**: Translate, analyze, search, and execute from one page
+4. **Shareable links**: Create public URLs for demos or collaboration
+
+### Architecture
+
+The Gradio app uses the same components as the MCP server but calls them directly:
+
+```
+Gradio Web UI
+├── Translate tab     → NL2SPARQL.translate()
+├── Analyze tab       → handle_infer_patterns()
+├── Search Ontology   → handle_search_ontology() + OntologyRetriever
+├── Execute SPARQL    → handle_execute_sparql()
+└── Fix Query         → handle_fix_case_sensitivity()
+```
+
+Unlike MCP, there's no external LLM orchestrating tool calls. The user directly selects which functionality to use via tabs.
+
+### Tabs
+
+| Tab | Description |
+|-----|-------------|
+| **Translate** | Full NL-to-SPARQL with patterns, validation, and sample results |
+| **Analyze Patterns** | See detected patterns and complexity without generating SPARQL |
+| **Search Ontology** | Find relevant properties and classes by semantic search |
+| **Execute SPARQL** | Run queries directly against the LiITA endpoint |
+| **Fix Query** | Auto-fix case-sensitive filters in existing queries |
+
+### Usage
+
+```bash
+# Start with default provider (Mistral)
+python scripts/gradio_app.py
+
+# Specify provider and model
+python scripts/gradio_app.py --provider ollama --model llama3
+
+# Create shareable link
+python scripts/gradio_app.py --provider mistral --share
+```
+
+Opens at `http://localhost:7860` by default.
+
+### When to Use the Web UI
+
+| Scenario | Recommended Approach |
+|----------|---------------------|
+| Quick interactive testing | Web UI |
+| Demos and presentations | Web UI with `--share` |
+| Python integration | Basic `NL2SPARQL` |
+| Self-correcting queries | Agentic `NL2SPARQLAgent` |
+| Claude Desktop users | MCP Server |
+
+---
+
 ## Limitations and Future Work
 
-**Dataset size**: 131 examples is enough for common patterns but may miss rare query types. The system can be improved by adding more examples as users discover gaps.
+**Dataset size**: 140 examples is enough for common patterns but may miss rare query types. The system can be improved by adding more examples as users discover gaps.
 
 **Pattern detection**: Keyword-based detection is simple but brittle. A classifier trained on the examples could be more robust. The agent's LLM-based analysis is more flexible but adds latency.
 

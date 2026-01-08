@@ -16,6 +16,8 @@ NL2SPARQL translates natural language questions (in Italian or English) into SPA
 - **Auto-Fix**: Automatically fixes case-sensitive filters and detects variable reuse bugs
 - **Bilingual**: Supports questions in both Italian and English
 - **Agentic Mode**: LangGraph-powered agent with self-correction and ontology exploration
+- **MCP Server**: Model Context Protocol server for integration with Claude Desktop and other MCP clients
+- **Web UI**: Gradio-based web interface for interactive query generation
 
 ## Installation
 
@@ -37,6 +39,14 @@ pip install liita-nl2sparql[all]
 pip install liita-nl2sparql[agent-openai]     # Agent with OpenAI
 pip install liita-nl2sparql[agent-anthropic]  # Agent with Anthropic
 pip install liita-nl2sparql[agent-all]        # Agent with all providers
+
+# MCP server (for Claude Desktop integration)
+pip install liita-nl2sparql[mcp-openai]       # MCP with OpenAI
+pip install liita-nl2sparql[mcp-anthropic]    # MCP with Anthropic
+pip install liita-nl2sparql[mcp-all]          # MCP with all providers
+
+# Web UI (Gradio)
+pip install liita-nl2sparql[ui]               # Gradio web interface
 ```
 
 ### Development Installation
@@ -254,6 +264,111 @@ prompt_text = retriever.format_for_prompt(results)
 
 The ontology catalog includes classes and properties from OntoLex-Lemon, LexInfo, SKOS, LiLA, ELITA, and other vocabularies used by LiITA.
 
+### MCP Server (Claude Desktop Integration)
+
+The MCP (Model Context Protocol) server exposes NL2SPARQL tools to MCP-compatible clients like Claude Desktop. This allows Claude to translate natural language questions to SPARQL queries for the LiITA knowledge base.
+
+#### Starting the Server
+
+```bash
+# Start MCP server with default provider (OpenAI)
+nl2sparql mcp serve
+
+# Start with specific provider
+nl2sparql mcp serve --provider anthropic
+nl2sparql mcp serve --provider ollama --model llama3
+
+# Show configuration
+nl2sparql mcp config
+```
+
+#### Claude Desktop Configuration
+
+Add to your `claude_desktop_config.json`:
+
+```json
+{
+  "mcpServers": {
+    "nl2sparql": {
+      "command": "{full path to python.exe in virtual environment",
+      "args": [ "-m", "nl2sparql.mcp", "serve", "--provider", "mistral", "--api-key", "YOUR_KEY" ]
+    }
+  }
+}
+```
+
+#### Available MCP Tools
+
+| Tool | Description |
+|------|-------------|
+| `translate` | Full NL-to-SPARQL translation using configured LLM |
+| `infer_patterns` | Detect query patterns from natural language |
+| `retrieve_examples` | Get similar query examples for few-shot learning |
+| `search_ontology` | Search ontology catalog for relevant properties/classes |
+| `get_constraints` | Get domain constraints for detected patterns |
+| `validate_sparql` | Validate SPARQL (syntax, semantic, endpoint) |
+| `execute_sparql` | Execute query against LiITA endpoint |
+| `fix_case_sensitivity` | Auto-fix case-sensitive filters |
+| `check_variable_reuse` | Detect variable reuse bugs |
+
+#### Python API
+
+```python
+import asyncio
+from nl2sparql.mcp import NL2SPARQLMCPServer
+from nl2sparql.mcp.server import MCPConfig
+
+# Configure and run the server
+config = MCPConfig(
+    provider="anthropic",
+    model="claude-sonnet-4-20250514",
+)
+server = NL2SPARQLMCPServer(config)
+asyncio.run(server.run())
+```
+
+### Web UI (Gradio)
+
+A Gradio-based web interface for interactive SPARQL query generation. This provides a user-friendly way to translate natural language questions without using the command line or writing Python code.
+
+#### Starting the Web UI
+
+```bash
+# Start with default provider (Mistral)
+python scripts/gradio_app.py
+
+# Start with specific provider
+python scripts/gradio_app.py --provider ollama --model llama3
+python scripts/gradio_app.py --provider anthropic --api-key YOUR_KEY
+
+# Create a public shareable link
+python scripts/gradio_app.py --provider mistral --share
+
+# Custom port
+python scripts/gradio_app.py --port 8080
+```
+
+The UI opens at `http://localhost:7860` by default.
+
+#### Features
+
+| Tab | Description |
+|-----|-------------|
+| **Translate** | Convert natural language questions to SPARQL with validation and sample results |
+| **Analyze Patterns** | Detect query patterns without generating SPARQL |
+| **Search Ontology** | Browse and search classes/properties in the LiITA ontology |
+| **Execute SPARQL** | Run SPARQL queries directly against the LiITA endpoint |
+| **Fix Query** | Auto-fix case-sensitive string filters |
+
+#### Screenshot
+
+The Translate tab shows:
+- Input field for natural language questions
+- Generated SPARQL query with syntax highlighting
+- Detected patterns and confidence score
+- Validation status (syntax, endpoint)
+- Sample results from the query
+
 ## Supported Query Types
 
 | Query Type | Example Question | Description |
@@ -270,6 +385,9 @@ The ontology catalog includes classes and properties from OntoLex-Lemon, LexInfo
 
 ```
 nl2sparql/
+├── scripts/
+│   ├── gradio_app.py        # Gradio web UI
+│   ├── test_mcp_tools.py    # Direct tool testing
 ├── notebooks/
 │   └── quickstart.ipynb     # Interactive tutorial
 ├── __init__.py              # Public API
@@ -280,6 +398,11 @@ nl2sparql/
 │   ├── state.py             # State definition for workflow
 │   ├── nodes.py             # Node implementations (analyze, generate, verify, etc.)
 │   └── graph.py             # LangGraph workflow definition
+├── mcp/                     # MCP (Model Context Protocol) server
+│   ├── __init__.py          # Public API (NL2SPARQLMCPServer)
+│   ├── server.py            # MCP server implementation
+│   ├── tools.py             # Tool handler implementations
+│   └── resources.py         # Resource providers
 ├── constraints/             # Domain-specific prompts and validation
 │   ├── base.py              # Core SPARQL patterns and system prompt
 │   ├── emotion.py           # ELITA emotion constraints

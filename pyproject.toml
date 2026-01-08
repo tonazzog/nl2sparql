@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "liita-nl2sparql"
-version = "0.5.0"
+version = "0.6.0"
 description = "Natural Language to SPARQL translation for the LiITA knowledge base"
 readme = "README.md"
 license = "MIT"
@@ -71,8 +71,32 @@ synthetic = [
     "liita-nl2sparql[agent]",
     "datasets>=2.14.0",  # HuggingFace datasets for export
 ]
+mcp = [
+    "mcp>=1.0.0",
+]
+mcp-openai = [
+    "liita-nl2sparql[mcp,openai]",
+]
+mcp-anthropic = [
+    "liita-nl2sparql[mcp,anthropic]",
+]
+mcp-mistral = [
+    "liita-nl2sparql[mcp,mistral]",
+]
+mcp-gemini = [
+    "liita-nl2sparql[mcp,gemini]",
+]
+mcp-ollama = [
+    "liita-nl2sparql[mcp,ollama]",
+]
+mcp-all = [
+    "liita-nl2sparql[mcp,openai,anthropic,mistral,gemini,ollama]",
+]
+ui = [
+    "gradio>=4.0.0",
+]
 all = [
-    "liita-nl2sparql[openai,anthropic,mistral,gemini,ollama,agent-all,synthetic]"
+    "liita-nl2sparql[openai,anthropic,mistral,gemini,ollama,agent-all,synthetic,mcp,ui]"
 ]
 dev = [
     "pytest>=7.0.0",
