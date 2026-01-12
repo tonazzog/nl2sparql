@@ -355,7 +355,7 @@ The UI opens at `http://localhost:7860` by default.
 |-----|-------------|
 | **Translate** | Convert natural language questions to SPARQL with validation and sample results |
 | **Analyze Patterns** | Detect query patterns without generating SPARQL |
-| **Retreive Examples** | Retrieve similar query examples from the dataset |
+| **Retrieve Examples** | Retrieve similar query examples from the dataset |
 | **Search Ontology** | Browse and search classes/properties in the LiITA ontology |
 | **Execute SPARQL** | Run SPARQL queries directly against the LiITA endpoint |
 | **Fix Query** | Auto-fix case-sensitive string filters |
