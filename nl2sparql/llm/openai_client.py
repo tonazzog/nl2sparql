@@ -1,7 +1,8 @@
 """OpenAI LLM client implementation."""
 
+import json
 import os
-from typing import Optional
+from typing import Any, Optional
 
 from .base import LLMClient
 
@@ -64,3 +65,93 @@ class OpenAIClient(LLMClient):
 
         response = self._client.chat.completions.create(**params)
         return response.choices[0].message.content
+
+    def complete_with_tools(
+        self,
+        messages: list[dict],
+        tools: list[dict],
+        temperature: float = 0.0,
+        max_tokens: int = 2048,
+        **kwargs,
+    ) -> dict[str, Any]:
+        """
+        Generate a completion with tool/function calling.
+
+        Args:
+            messages: Conversation messages
+            tools: Tool definitions in OpenAI format
+            temperature: Sampling temperature
+            max_tokens: Max tokens
+
+        Returns:
+            Dict with 'content' and 'tool_calls'
+        """
+        # Convert messages to OpenAI format (handle tool results)
+        openai_messages = []
+        for msg in messages:
+            if msg["role"] == "tool":
+                # OpenAI uses 'tool' role with tool_call_id
+                openai_messages.append({
+                    "role": "tool",
+                    "content": msg.get("content", ""),
+                    "tool_call_id": msg.get("tool_call_id", ""),
+                })
+            elif msg["role"] == "assistant" and "tool_calls" in msg:
+                # Assistant message with tool calls
+                tool_calls = []
+                for tc in msg["tool_calls"]:
+                    tool_calls.append({
+                        "id": tc.get("id", ""),
+                        "type": "function",
+                        "function": {
+                            "name": tc["name"],
+                            "arguments": json.dumps(tc["arguments"]) if isinstance(tc["arguments"], dict) else tc["arguments"],
+                        }
+                    })
+                openai_messages.append({
+                    "role": "assistant",
+                    "content": msg.get("content") or None,
+                    "tool_calls": tool_calls,
+                })
+            else:
+                openai_messages.append(msg)
+
+        # Build request parameters
+        params = {
+            "model": self.model,
+            "messages": openai_messages,
+            "tools": tools,
+            "temperature": temperature,
+            **kwargs,
+        }
+
+        # Use appropriate token limit parameter based on model
+        if self._uses_max_completion_tokens():
+            params["max_completion_tokens"] = max_tokens
+        else:
+            params["max_tokens"] = max_tokens
+
+        response = self._client.chat.completions.create(**params)
+
+        message = response.choices[0].message
+        result = {
+            "content": message.content or "",
+            "tool_calls": [],
+        }
+
+        # Extract tool calls if present
+        if message.tool_calls:
+            for tc in message.tool_calls:
+                # Parse arguments from JSON string
+                try:
+                    args = json.loads(tc.function.arguments)
+                except (json.JSONDecodeError, TypeError):
+                    args = {}
+
+                result["tool_calls"].append({
+                    "id": tc.id,
+                    "name": tc.function.name,
+                    "arguments": args,
+                })
+
+        return result

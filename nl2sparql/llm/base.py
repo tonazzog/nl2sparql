@@ -1,7 +1,7 @@
 """Base LLM client abstraction for multiple providers."""
 
 from abc import ABC, abstractmethod
-from typing import Optional
+from typing import Any, Optional
 
 
 class LLMClient(ABC):
@@ -67,6 +67,76 @@ class LLMClient(ABC):
             {"role": "user", "content": user_prompt},
         ]
         return self.complete(messages, temperature=temperature, max_tokens=max_tokens, **kwargs)
+
+    def complete_with_tools(
+        self,
+        messages: list[dict],
+        tools: list[dict],
+        temperature: float = 0.0,
+        max_tokens: int = 2048,
+        **kwargs,
+    ) -> dict[str, Any]:
+        """
+        Generate a completion with tool/function calling support.
+
+        Args:
+            messages: List of message dicts with 'role' and 'content' keys
+            tools: List of tool definitions (OpenAI function calling format)
+            temperature: Sampling temperature (0.0 = deterministic)
+            max_tokens: Maximum tokens to generate
+            **kwargs: Additional provider-specific options
+
+        Returns:
+            Dict with 'content' (text response) and 'tool_calls' (list of tool calls)
+            Each tool call has 'id', 'name', and 'arguments' keys.
+        """
+        # Default implementation - subclasses should override for actual tool support
+        raise NotImplementedError(
+            f"{self.__class__.__name__} does not support tool calling. "
+            "Use a provider that supports function calling (OpenAI, Anthropic, Mistral)."
+        )
+
+    def generate_with_tools(
+        self,
+        system_prompt: str,
+        messages: list[dict],
+        tools: list[dict],
+        temperature: float = 0.0,
+        max_tokens: int = 2048,
+        **kwargs,
+    ) -> dict[str, Any]:
+        """
+        Convenience method for tool calling with a system prompt.
+
+        Args:
+            system_prompt: The system/context prompt
+            messages: Conversation messages (user, assistant, tool results)
+            tools: List of tool definitions
+            temperature: Sampling temperature
+            max_tokens: Maximum tokens to generate
+
+        Returns:
+            Dict with 'content' and 'tool_calls'
+        """
+        full_messages = [{"role": "system", "content": system_prompt}] + messages
+        return self.complete_with_tools(
+            messages=full_messages,
+            tools=tools,
+            temperature=temperature,
+            max_tokens=max_tokens,
+            **kwargs,
+        )
+
+    def generate(
+        self,
+        system_prompt: str,
+        user_prompt: str,
+        temperature: float = 0.0,
+        max_tokens: int = 2048,
+        **kwargs,
+    ) -> str:
+        """Alias for chat() method."""
+        return self.chat(system_prompt, user_prompt, temperature, max_tokens, **kwargs)
 
 
 def get_client(

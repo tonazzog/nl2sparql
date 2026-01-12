@@ -285,6 +285,7 @@ Always maintain SPARQL correctness and follow ALL mandatory patterns for the que
 
 # Pattern categories for constraint selection
 PATTERN_CATEGORIES = {
+    # Core patterns
     "EMOTION_LEXICON": "emotion",
     "TRANSLATION": "translation",
     "MULTI_TRANSLATION": "translation",
@@ -297,4 +298,10 @@ PATTERN_CATEGORIES = {
     "META_GRAPH": "basic",
     "SERVICE_INTEGRATION": "semantic_relation",
     "COMPOSITIONAL": "compositional",
+    "LEXICAL_RELATION": "lexical_relation",
+    # Additional patterns
+    "ETYMOLOGY": "etymology",
+    "DOMAIN_REGISTER": "basic",  # No special constraints, uses LexInfo properties
+    "SYNTACTIC_FRAME": "basic",  # No special constraints, uses Synsem/LexInfo
+    "LEXICAL_FORM": "morphology",  # Related to morphological structure
 }

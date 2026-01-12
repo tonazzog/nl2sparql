@@ -18,7 +18,7 @@ DEFAULT_RETRIEVER_WEIGHTS = (0.4, 0.3, 0.3)
 # Package data directory
 PACKAGE_DIR = Path(__file__).parent
 DATA_DIR = PACKAGE_DIR / "data"
-DATASET_PATH = DATA_DIR / "sparql_queries_final.json"
+DATASET_PATH = DATA_DIR / "sparql_queries_examples.json"
 
 
 @dataclass

@@ -66,12 +66,25 @@ class ValidationResult:
 
     @property
     def is_valid(self) -> bool:
-        """Check if the query is fully valid."""
+        """Check if the query executes successfully (syntax + execution only).
+
+        Semantic warnings do NOT make a query invalid - they are advisory.
+        A query is valid if it has correct syntax and executes without errors.
+        """
         return (
             self.syntax_valid
             and (self.execution_success is None or self.execution_success)
-            and len(self.semantic_errors) == 0
         )
+
+    @property
+    def has_results(self) -> bool:
+        """Check if the query returned any results."""
+        return self.result_count is not None and self.result_count > 0
+
+    @property
+    def has_warnings(self) -> bool:
+        """Check if there are semantic warnings (not errors that prevent execution)."""
+        return len(self.semantic_errors) > 0
 
 
 @dataclass
@@ -83,9 +96,11 @@ class TranslationResult:
     validation: Optional[ValidationResult] = None
     retrieved_examples: list[RetrievalResult] = field(default_factory=list)
     detected_patterns: list[str] = field(default_factory=list)
+    pattern_scores: dict[str, float] = field(default_factory=dict)
     confidence: float = 0.0
     was_fixed: bool = False
     fix_attempts: int = 0
+    generation_strategy: str = "synthesize"  # "adapt" or "synthesize"
 
 
 # Lazy imports to avoid loading heavy dependencies at import time

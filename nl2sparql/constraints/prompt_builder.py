@@ -12,6 +12,7 @@ from .translation import TRANSLATION_MANDATORY_PATTERNS
 from .semantic import SEMANTIC_MANDATORY_PATTERNS
 from .multi_entry import MULTI_ENTRY_CRITICAL_PATTERN
 from .compositional import COMPOSITIONAL_PATTERNS
+from .lexical_relation import LEXICAL_RELATION_MANDATORY_PATTERNS
 
 if TYPE_CHECKING:
     from .. import QueryExample
@@ -39,11 +40,12 @@ def get_constraints_for_patterns(patterns: list[str]) -> str:
     has_emotion = "emotion" in categories
     has_translation = "translation" in categories
     has_semantic = "sense_definition" in categories or "semantic_relation" in categories
+    has_lexical_relation = "lexical_relation" in categories
     has_morphology = "morphology" in categories
     has_compositional = "COMPOSITIONAL" in patterns
 
     # Multi-entry pattern needed if emotion + anything else
-    if has_emotion and (has_translation or has_semantic or has_morphology):
+    if has_emotion and (has_translation or has_semantic or has_morphology or has_lexical_relation):
         constraints.append("\n## MULTI-ENTRY PATTERN (CRITICAL):\n")
         constraints.append(MULTI_ENTRY_CRITICAL_PATTERN)
 
@@ -59,8 +61,13 @@ def get_constraints_for_patterns(patterns: list[str]) -> str:
         constraints.append("\n## SEMANTIC/SENSE CONSTRAINTS:\n")
         constraints.append(SEMANTIC_MANDATORY_PATTERNS)
 
+    # Lexical relations (synonyms, antonyms) - separate from hierarchical semantic relations
+    if has_lexical_relation:
+        constraints.append("\n## LEXICAL RELATION CONSTRAINTS (SYNONYM/ANTONYM):\n")
+        constraints.append(LEXICAL_RELATION_MANDATORY_PATTERNS)
+
     # Compositional reasoning for complex multi-step queries
-    if has_compositional or has_semantic:
+    if has_compositional or has_semantic or has_lexical_relation:
         constraints.append("\n## COMPOSITIONAL QUERY REASONING:\n")
         constraints.append(COMPOSITIONAL_PATTERNS)
 

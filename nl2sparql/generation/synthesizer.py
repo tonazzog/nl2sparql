@@ -121,6 +121,7 @@ class NL2SPARQL:
 
         if best_score >= self.adaptation_threshold and retrieved:
             # High similarity - adapt the best example
+            generation_strategy = "adapt"
             sparql = adapt_query(
                 example=retrieved[0].example,
                 user_question=question,
@@ -129,6 +130,7 @@ class NL2SPARQL:
             )
         else:
             # Synthesize from multiple examples
+            generation_strategy = "synthesize"
             sparql = synthesize_query(
                 user_question=question,
                 exemplars=exemplars,
@@ -157,9 +159,11 @@ class NL2SPARQL:
             validation=validation_result,
             retrieved_examples=retrieved,
             detected_patterns=detected_patterns,
+            pattern_scores=inferred_patterns,
             confidence=confidence,
             was_fixed=was_fixed,
             fix_attempts=fix_attempts,
+            generation_strategy=generation_strategy,
         )
 
     def _validate_and_fix(

@@ -290,7 +290,7 @@ Add to your `claude_desktop_config.json`:
 {
   "mcpServers": {
     "nl2sparql": {
-      "command": "{full path to python.exe in virtual environment",
+      "command": "full path to python.exe in virtual environment",
       "args": [ "-m", "nl2sparql.mcp", "serve", "--provider", "mistral", "--api-key", "YOUR_KEY" ]
     }
   }
@@ -326,7 +326,6 @@ config = MCPConfig(
 server = NL2SPARQLMCPServer(config)
 asyncio.run(server.run())
 ```
-
 ### Web UI (Gradio)
 
 A Gradio-based web interface for interactive SPARQL query generation. This provides a user-friendly way to translate natural language questions without using the command line or writing Python code.
@@ -356,6 +355,7 @@ The UI opens at `http://localhost:7860` by default.
 |-----|-------------|
 | **Translate** | Convert natural language questions to SPARQL with validation and sample results |
 | **Analyze Patterns** | Detect query patterns without generating SPARQL |
+| **Retreive Examples** | Retrieve similar query examples from the dataset |
 | **Search Ontology** | Browse and search classes/properties in the LiITA ontology |
 | **Execute SPARQL** | Run SPARQL queries directly against the LiITA endpoint |
 | **Fix Query** | Auto-fix case-sensitive string filters |
@@ -368,6 +368,78 @@ The Translate tab shows:
 - Detected patterns and confidence score
 - Validation status (syntax, endpoint)
 - Sample results from the query
+
+### Web UI (Gradio Agent)
+
+An agent-based Gradio web interface with dual-LLM architecture. Watch in real-time as the orchestrator decides which tools to call and the translator generates SPARQL queries.
+
+#### Architecture
+
+The app uses two LLMs:
+- **Orchestrator**: Decides which tools to call (can be a smaller/cheaper model)
+- **Translator**: Expert SPARQL generator (used by the `generate_sparql` tool)
+
+#### Starting the Web UI
+
+```bash
+# Start with default provider (Mistral for both LLMs)
+python scripts/gradio_app_agent.py
+
+# Use different providers for orchestrator and translator
+python scripts/gradio_app_agent.py \
+    --orchestrator-provider anthropic --orchestrator-model claude-3-haiku-20240307 \
+    --translator-provider openai --translator-model gpt-4.1
+
+# With explicit API keys
+python scripts/gradio_app_agent.py \
+    -op mistral -ok "YOUR_MISTRAL_KEY" \
+    -tp openai -tk "YOUR_OPENAI_KEY"
+
+# Create a public shareable link
+python scripts/gradio_app_agent.py --share
+
+# Custom port
+python scripts/gradio_app_agent.py --port 8080
+```
+
+The UI opens at `http://localhost:7861` by default.
+
+#### Command-line Options
+
+| Option | Short | Description |
+|--------|-------|-------------|
+| `--orchestrator-provider` | `-op` | Orchestrator LLM provider (default: mistral) |
+| `--orchestrator-model` | `-om` | Orchestrator model (uses provider default) |
+| `--orchestrator-api-key` | `-ok` | Orchestrator API key (uses env var if not set) |
+| `--translator-provider` | `-tp` | Translator LLM provider (default: mistral) |
+| `--translator-model` | `-tm` | Translator model (uses provider default) |
+| `--translator-api-key` | `-tk` | Translator API key (uses env var if not set) |
+| `--share` | | Create a public shareable link |
+| `--port` | | Port to run on (default: 7861) |
+
+#### Available Tools
+
+The orchestrator can call these tools:
+
+| Tool | Description |
+|------|-------------|
+| `infer_patterns` | Detect query patterns (EMOTION_LEXICON, TRANSLATION, etc.) |
+| `retrieve_examples` | Find similar SPARQL examples for few-shot learning |
+| `search_ontology` | Search for RDF classes and properties |
+| `get_constraints` | Get domain-specific rules for detected patterns |
+| `generate_sparql` | Generate SPARQL using the translator LLM |
+| `validate_sparql` | Validate query (syntax, semantic, endpoint) |
+| `execute_sparql` | Execute query and return results |
+| `fix_query` | Auto-fix common issues (case sensitivity, SERVICE clauses) |
+| `final_answer` | Return the final SPARQL query to the user |
+
+#### Real-time Tool Calls
+
+The UI streams tool calls as they happen:
+- **Running** indicators show which tool is currently executing
+- **Completed** indicators show results from each tool
+- The SPARQL output updates as soon as a query is generated
+- Validation results and fixes are shown in real-time
 
 ## Supported Query Types
 
@@ -386,59 +458,71 @@ The Translate tab shows:
 ```
 nl2sparql/
 ├── scripts/
-│   ├── gradio_app.py        # Gradio web UI
-│   ├── test_mcp_tools.py    # Direct tool testing
+│   ├── gradio_app.py          # Simple Gradio web UI
+│   ├── gradio_app_agent.py    # Agent-based Gradio UI (dual LLM)
+│   └── test_mcp_tools.py      # Direct tool testing
 ├── notebooks/
-│   └── quickstart.ipynb     # Interactive tutorial
-├── __init__.py              # Public API
-├── cli.py                   # Command-line interface
-├── config.py                # Configuration management
-├── agent/                   # Agentic LangGraph workflow
-│   ├── __init__.py          # Public API (NL2SPARQLAgent)
-│   ├── state.py             # State definition for workflow
-│   ├── nodes.py             # Node implementations (analyze, generate, verify, etc.)
-│   └── graph.py             # LangGraph workflow definition
-├── mcp/                     # MCP (Model Context Protocol) server
-│   ├── __init__.py          # Public API (NL2SPARQLMCPServer)
-│   ├── server.py            # MCP server implementation
-│   ├── tools.py             # Tool handler implementations
-│   └── resources.py         # Resource providers
-├── constraints/             # Domain-specific prompts and validation
-│   ├── base.py              # Core SPARQL patterns and system prompt
-│   ├── emotion.py           # ELITA emotion constraints
-│   ├── translation.py       # Dialect translation constraints
-│   ├── semantic.py          # CompL-it semantic constraints
-│   ├── compositional.py     # Complex query reasoning
-│   └── prompt_builder.py    # Dynamic prompt construction
-├── retrieval/               # Hybrid retrieval system
-│   ├── hybrid_retriever.py  # Main retriever combining all methods
-│   ├── ontology_retriever.py # Semantic search over ontology definitions
-│   ├── embeddings.py        # Sentence transformers + FAISS
-│   ├── bm25.py              # BM25 with pattern boosting
-│   └── patterns.py          # Query pattern inference
-├── generation/              # Query synthesis
-│   ├── synthesizer.py       # Main NL2SPARQL class
-│   └── adapters.py          # Query adaptation utilities
-├── llm/                     # LLM provider abstraction
-│   ├── base.py              # Abstract client interface
-│   ├── openai_client.py     # OpenAI implementation
-│   ├── anthropic_client.py  # Anthropic implementation
-│   ├── mistral_client.py    # Mistral implementation
-│   ├── gemini_client.py     # Google Gemini implementation
-│   └── ollama_client.py     # Ollama implementation
-├── validation/              # Query validation
-│   ├── syntax.py            # rdflib syntax validation
-│   ├── endpoint.py          # SPARQL endpoint validation
-│   └── semantic.py          # Constraint-based validation
-├── evaluation/              # Evaluation framework
-│   ├── evaluate.py          # Test runner and metrics
-│   └── batch_evaluate.py    # Multi-model comparison
-├── synthetic/               # Synthetic data generation
-│   └── generator.py         # Training data generator
+│   └── quickstart.ipynb       # Interactive tutorial
+├── __init__.py                # Public API
+├── __main__.py                # Entry point for python -m nl2sparql
+├── cli.py                     # Command-line interface
+├── config.py                  # Configuration management
+├── agent/                     # Agentic LangGraph workflow
+│   ├── __init__.py            # Public API (NL2SPARQLAgent)
+│   ├── state.py               # State definition for workflow
+│   ├── nodes.py               # Node implementations (analyze, generate, verify, etc.)
+│   └── graph.py               # LangGraph workflow definition
+├── mcp/                       # MCP (Model Context Protocol) server
+│   ├── __init__.py            # Public API (NL2SPARQLMCPServer)
+│   ├── __main__.py            # Entry point for python -m nl2sparql.mcp
+│   ├── server.py              # MCP server implementation
+│   ├── tools.py               # Tool handler implementations
+│   └── resources.py           # Resource providers
+├── constraints/               # Domain-specific prompts and validation
+│   ├── __init__.py            # Public API for constraints
+│   ├── base.py                # Core SPARQL patterns and system prompt
+│   ├── emotion.py             # ELITA emotion constraints
+│   ├── translation.py         # Dialect translation constraints
+│   ├── semantic.py            # CompL-it semantic constraints
+│   ├── lexical_relation.py    # Synonym/antonym constraints
+│   ├── multi_entry.py         # Multi-entry pattern validation
+│   ├── compositional.py       # Complex query reasoning
+│   └── prompt_builder.py      # Dynamic prompt construction
+├── retrieval/                 # Hybrid retrieval system
+│   ├── __init__.py            # Public API for retrieval
+│   ├── hybrid_retriever.py    # Main retriever combining all methods
+│   ├── ontology_retriever.py  # Semantic search over ontology definitions
+│   ├── embeddings.py          # Sentence transformers + FAISS
+│   ├── bm25.py                # BM25 with pattern boosting
+│   └── patterns.py            # Query pattern inference (keyword + semantic)
+├── generation/                # Query synthesis
+│   ├── __init__.py            # Public API for generation
+│   ├── synthesizer.py         # Main NL2SPARQL class
+│   └── adapters.py            # Query adaptation utilities
+├── llm/                       # LLM provider abstraction
+│   ├── __init__.py            # Public API for LLM clients
+│   ├── base.py                # Abstract client interface
+│   ├── openai_client.py       # OpenAI implementation
+│   ├── anthropic_client.py    # Anthropic implementation
+│   ├── mistral_client.py      # Mistral implementation
+│   ├── gemini_client.py       # Google Gemini implementation
+│   └── ollama_client.py       # Ollama implementation
+├── validation/                # Query validation
+│   ├── __init__.py            # Public API for validation
+│   ├── syntax.py              # rdflib syntax validation
+│   ├── endpoint.py            # SPARQL endpoint validation
+│   └── semantic.py            # Constraint-based validation
+├── evaluation/                # Evaluation framework
+│   ├── __init__.py            # Public API for evaluation
+│   ├── evaluate.py            # Test runner and metrics
+│   └── batch_evaluate.py      # Multi-model comparison
+├── synthetic/                 # Synthetic data generation
+│   ├── __init__.py            # Public API for synthetic generation
+│   └── generator.py           # Training data generator
 └── data/
-    ├── sparql_queries_final.json  # Training dataset
-    ├── test_dataset.json          # Evaluation test cases
-    └── ontology.json              # Ontology catalog (classes & properties)
+    ├── sparql_queries_examples.json  # Example queries dataset
+    ├── test_dataset.json             # Evaluation test cases
+    └── ontology.json                 # Ontology catalog (classes & properties)
 ```
 
 ## LiITA Knowledge Base Architecture

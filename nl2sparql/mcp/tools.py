@@ -50,18 +50,26 @@ def handle_translate(
 def handle_infer_patterns(arguments: dict[str, Any]) -> dict[str, Any]:
     """Handle infer_patterns tool - detect query patterns from NL.
 
+    Uses hybrid pattern inference combining keyword matching and semantic
+    similarity with pattern prototypes for robust pattern detection.
+
     Args:
         arguments: {"question": str, "threshold": float (optional)}
 
     Returns:
         Detected patterns with scores and complexity assessment.
     """
-    from ..retrieval.patterns import infer_patterns
+    from ..retrieval.patterns import infer_patterns_hybrid
 
     question = arguments["question"]
     threshold = arguments.get("threshold", 0.3)
 
-    patterns = infer_patterns(question, threshold=threshold)
+    # Use hybrid inference (keyword + semantic) for better pattern detection
+    patterns = infer_patterns_hybrid(
+        question,
+        keyword_threshold=threshold,
+        semantic_threshold=threshold + 0.1,  # Slightly higher for semantic
+    )
 
     # Get top patterns above threshold
     top_patterns = [p for p, score in patterns.items() if score >= threshold]
@@ -414,4 +422,157 @@ def handle_check_variable_reuse(arguments: dict[str, Any]) -> dict[str, Any]:
     return {
         "has_issues": len(issues) > 0,
         "issues": issues,
+    }
+
+
+def handle_fix_service_clause(arguments: dict[str, Any]) -> dict[str, Any]:
+    """Handle fix_service_clause tool - remove SERVICE wrapper from query.
+
+    Some endpoints (like Virtuoso) return permission errors when using
+    federated SERVICE queries. This fix removes the SERVICE wrapper and keeps
+    the triple patterns inside, making them execute against the local endpoint.
+
+    Args:
+        arguments: {"sparql": str}
+
+    Returns:
+        Fixed SPARQL with SERVICE clause removed.
+    """
+    sparql = arguments["sparql"]
+
+    # Find SERVICE blocks with their content
+    # Pattern: SERVICE <uri> { ... }
+    service_pattern = r'SERVICE\s*<([^>]+)>\s*\{'
+
+    match = re.search(service_pattern, sparql, re.IGNORECASE)
+    if not match:
+        return {
+            "sparql": sparql,
+            "was_modified": False,
+            "service_uri": None,
+            "message": "No SERVICE clause found in query",
+        }
+
+    service_uri = match.group(1)
+
+    # Find the matching closing brace for the SERVICE block
+    start_pos = match.end() - 1  # Position of opening brace
+    brace_count = 1
+    pos = start_pos + 1
+
+    while pos < len(sparql) and brace_count > 0:
+        if sparql[pos] == '{':
+            brace_count += 1
+        elif sparql[pos] == '}':
+            brace_count -= 1
+        pos += 1
+
+    if brace_count != 0:
+        return {
+            "sparql": sparql,
+            "was_modified": False,
+            "service_uri": service_uri,
+            "message": "Unbalanced braces in SERVICE clause, cannot safely fix",
+        }
+
+    end_pos = pos - 1  # Position of closing brace
+
+    # Extract content inside SERVICE block
+    service_content = sparql[start_pos + 1:end_pos].strip()
+
+    # Remove the SERVICE block and replace with its content
+    before_service = sparql[:match.start()].rstrip()
+    after_service = sparql[end_pos + 1:].lstrip()
+
+    # Reconstruct the query with proper formatting
+    # If before ends with '{', add newline + indentation
+    if before_service.endswith('{'):
+        fixed_sparql = before_service + '\n  ' + service_content
+    else:
+        fixed_sparql = before_service + '\n' + service_content
+
+    if after_service:
+        fixed_sparql += '\n' + after_service
+
+    return {
+        "sparql": fixed_sparql,
+        "was_modified": True,
+        "service_uri": service_uri,
+        "message": f"Removed SERVICE clause for <{service_uri}>. Query will execute against local endpoint.",
+    }
+
+def handle_fix_graph_clause(arguments: dict[str, Any]) -> dict[str, Any]:
+    """Handle fix_graph_clause tool - remove GRAPH wrapper from query.
+
+    Some endpoints (like Virtuoso) return permission errors when using
+    federated GRAPH queries. This fix removes the GRAPH wrapper and keeps
+    the triple patterns inside, making them execute against the local endpoint.
+
+    Args:
+        arguments: {"sparql": str}
+
+    Returns:
+        Fixed SPARQL with GRAPH clause removed.
+    """
+    sparql = arguments["sparql"]
+
+    # Find GRAPH blocks with their content
+    # Pattern: GRAPH <uri> { ... }
+    graph_pattern = r'GRAPH\s*<([^>]+)>\s*\{'
+
+    match = re.search(graph_pattern, sparql, re.IGNORECASE)
+    if not match:
+        return {
+            "sparql": sparql,
+            "was_modified": False,
+            "graph_uri": None,
+            "message": "No GRAPH clause found in query",
+        }
+
+    graph_uri = match.group(1)
+
+    # Find the matching closing brace for the GRAPH block
+    start_pos = match.end() - 1  # Position of opening brace
+    brace_count = 1
+    pos = start_pos + 1
+
+    while pos < len(sparql) and brace_count > 0:
+        if sparql[pos] == '{':
+            brace_count += 1
+        elif sparql[pos] == '}':
+            brace_count -= 1
+        pos += 1
+
+    if brace_count != 0:
+        return {
+            "sparql": sparql,
+            "was_modified": False,
+            "graph_uri": graph_uri,
+            "message": "Unbalanced braces in GRAPH clause, cannot safely fix",
+        }
+
+    end_pos = pos - 1  # Position of closing brace
+
+    # Extract content inside GRAPH block
+    graph_content = sparql[start_pos + 1:end_pos].strip()
+
+    # Remove the GRAPH block and replace with its content
+    before_graph = sparql[:match.start()].rstrip()
+    after_graph = sparql[end_pos + 1:].lstrip()
+
+    # Reconstruct the query with proper formatting
+    # If before ends with '{', add newline + indentation
+    if before_graph.endswith('{'):
+        fixed_sparql = before_graph + '\n  ' + graph_content
+    else:
+        fixed_sparql = before_graph + '\n' + graph_content
+
+    if after_graph:
+        fixed_sparql += '\n' + after_graph
+
+    return {
+        "sparql": fixed_sparql,
+        "was_modified": True,
+        "graph_uri": graph_uri,
+        "message": f"Removed GRAPH clause for <{graph_uri}>. Query will execute against local endpoint.",
     }

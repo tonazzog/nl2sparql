@@ -111,19 +111,23 @@ Language: {state["language"]}
 
 Determine:
 1. patterns: List of patterns needed. Choose from:
-   - EMOTION_LEXICON (emotions, feelings)
+   - EMOTION_LEXICON (emotions, feelings, polarity)
    - TRANSLATION (dialect translations - Sicilian, Parmigiano)
    - SENSE_DEFINITION (word definitions from CompL-it)
-   - SEMANTIC_RELATION (hypernyms, hyponyms, meronyms)
-   - POS_FILTER (part of speech filtering - nouns, verbs, etc.)
-   - MORPHO_REGEX (word patterns - starts with, ends with)
+   - SENSE_COUNT (number of senses, polysemy)
+   - SEMANTIC_RELATION (hypernyms, hyponyms, meronyms, part-of relations)
+   - LEXICAL_RELATION (synonyms, antonyms)
+   - POS_FILTER (part of speech filtering - nouns, verbs, adjectives, etc.)
+   - MORPHO_REGEX (word patterns - starts with, ends with, contains)
+   - LEXICAL_FORM (inflected forms, conjugations, declensions, gender, number)
+   - ETYMOLOGY (word origins, derivations)
    - COUNT_ENTITIES (counting queries)
 
 2. complexity: "simple" (1 pattern), "moderate" (2 patterns), "complex" (3+ patterns or multi-dialect)
 
-3. requires_service: true ONLY if needs CompL-it data (definitions, semantic relations)
-   - TRUE for: definitions, hypernyms, hyponyms, meronyms, semantic relations
-   - FALSE for: emotions (ELITA), translations (dialects), POS filters, morphology
+3. requires_service: true ONLY if needs CompL-it data (definitions, semantic relations, synonyms)
+   - TRUE for: definitions, hypernyms, hyponyms, meronyms, synonyms, antonyms
+   - FALSE for: emotions (ELITA), translations (dialects), POS filters, morphology, Latin
 
 4. requires_translation: true if needs dialect translations
 
@@ -462,6 +466,102 @@ def _fix_case_sensitive_filters(sparql: str) -> tuple[str, bool]:
     return sparql, modified
 
 
+def _fix_service_clause(sparql: str) -> tuple[str, bool]:
+    """Remove SERVICE clause wrapper while keeping its content.
+
+    Some endpoints (like Virtuoso) may return permission errors when using
+    federated SERVICE queries. This fix removes the SERVICE wrapper and keeps
+    the triple patterns inside, making them execute against the local endpoint.
+
+    Example:
+        SERVICE <https://klab.ilc.cnr.it/graphdb-compl-it/> {
+            ?word ontolex:canonicalForm [ ontolex:writtenRep ?wr ] .
+            FILTER(STR(?wr) = "coniglio")
+        }
+
+    Becomes:
+        ?word ontolex:canonicalForm [ ontolex:writtenRep ?wr ] .
+        FILTER(STR(?wr) = "coniglio")
+
+    Returns:
+        tuple: (fixed_sparql, was_modified)
+    """
+    # Find SERVICE blocks with their content
+    # Pattern: SERVICE <uri> { ... }
+    service_pattern = r'SERVICE\s*<[^>]+>\s*\{'
+
+    match = re.search(service_pattern, sparql, re.IGNORECASE)
+    if not match:
+        return sparql, False
+
+    # Find the matching closing brace for the SERVICE block
+    start_pos = match.end() - 1  # Position of opening brace
+    brace_count = 1
+    pos = start_pos + 1
+
+    while pos < len(sparql) and brace_count > 0:
+        if sparql[pos] == '{':
+            brace_count += 1
+        elif sparql[pos] == '}':
+            brace_count -= 1
+        pos += 1
+
+    if brace_count != 0:
+        # Unbalanced braces, can't safely fix
+        return sparql, False
+
+    end_pos = pos - 1  # Position of closing brace
+
+    # Extract content inside SERVICE block
+    service_content = sparql[start_pos + 1:end_pos].strip()
+
+    # Remove the SERVICE block and replace with its content
+    # We need to preserve proper spacing/newlines
+    before_service = sparql[:match.start()].rstrip()
+    after_service = sparql[end_pos + 1:].lstrip()
+
+    # Reconstruct the query with proper formatting
+    # If before ends with '{', add newline + indentation
+    if before_service.endswith('{'):
+        fixed_sparql = before_service + '\n  ' + service_content
+    else:
+        fixed_sparql = before_service + '\n' + service_content
+
+    if after_service:
+        fixed_sparql += '\n' + after_service
+
+    return fixed_sparql, True
+
+
+def is_service_error(error_message: str) -> bool:
+    """Check if an error message indicates a SERVICE clause problem.
+
+    Args:
+        error_message: The error message from query execution
+
+    Returns:
+        True if the error is related to SERVICE clause issues
+    """
+    if not error_message:
+        return False
+
+    error_lower = error_message.lower()
+    service_error_indicators = [
+        'service',
+        'sparul',
+        'load service data',
+        'access denied',
+        'permission',
+        'federat',
+        'remote endpoint',
+        'connection refused',
+        'timeout',  # SERVICE queries can timeout
+        'sr619',    # Virtuoso error code
+    ]
+
+    return any(indicator in error_lower for indicator in service_error_indicators)
+
+
 def execute_query(state: NL2SPARQLState) -> dict[str, Any]:
     """Execute the SPARQL query against the endpoint."""
     from ..validation.endpoint import validate_endpoint
@@ -490,6 +590,24 @@ def execute_query(state: NL2SPARQLState) -> dict[str, Any]:
 
     # Execute against endpoint
     success, error, count, results = validate_endpoint(sparql, timeout=30)
+
+    # If SERVICE error, try removing SERVICE clause and execute locally
+    # This handles Virtuoso permission errors like "SPARUL LOAD SERVICE DATA access denied"
+    if error and is_service_error(error):
+        fixed_sparql, was_fixed = _fix_service_clause(sparql)
+        if was_fixed:
+            # Re-execute without SERVICE clause
+            success2, error2, count2, results2 = validate_endpoint(fixed_sparql, timeout=30)
+            if success2 and not error2:
+                # The fix worked! Update the generated query and return new results
+                return {
+                    "execution_result": results2,
+                    "result_count": count2 or 0,
+                    "execution_error": None,
+                    # Update the generated_sparql with the fixed version
+                    "generated_sparql": fixed_sparql,
+                }
+            # If fix didn't work, fall through to return original error
 
     # If no results and no error, try fixing case-sensitive filters
     # This handles cases like "rabbia" vs "Rabbia" without regenerating the whole query

@@ -74,6 +74,7 @@
     },
     "patterns": {
       "MORPHO_REGEX": 0.9,
+      "LEXICAL_FORM": 0.7,
       "META_GRAPH": 0.6,
       "POS_FILTER": 0.3
     }
@@ -90,6 +91,7 @@
     },
     "patterns": {
       "MORPHO_REGEX": 0.9,
+      "LEXICAL_FORM": 0.7,
       "META_GRAPH": 0.7,
       "POS_FILTER": 0.1
     }
@@ -122,6 +124,7 @@
     },
     "patterns": {
       "COUNT_ENTITIES": 0.9,
+      "LEXICAL_FORM": 0.9,
       "META_GRAPH": 0.8,
       "MORPHO_REGEX": 0.0
     }
@@ -321,7 +324,7 @@
   {
     "id": 21,
     "sparql": "# This query retrieves Italian meronyms (parts) of the lemma \"corpo\" from the LiITA Lemma Bank using OntoLex-Lemon structures.\n\nPREFIX lila: <http://lila-erc.eu/ontologies/lila/>\nPREFIX ontolex: <http://www.w3.org/ns/lemon/ontolex#>\nPREFIX lime: <http://www.w3.org/ns/lemon/lime#>\nPREFIX vartrans: <http://www.w3.org/ns/lemon/vartrans#>\nPREFIX skos: <http://www.w3.org/2004/02/skos/core#>\nPREFIX dcterms: <http://purl.org/dc/terms/>\nPREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>\nPREFIX lexinfo: <http://www.lexinfo.net/ontology/3.0/lexinfo#>\nPREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>\n\nPREFIX ontolex: <http://www.w3.org/ns/lemon/ontolex#>\nPREFIX lime: <http://www.w3.org/ns/lemon/lime#>\nPREFIX vartrans: <http://www.w3.org/ns/lemon/vartrans#>\nPREFIX skos: <http://www.w3.org/2004/02/skos/core#>\nPREFIX dcterms: <http://purl.org/dc/terms/>\nPREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>\nPREFIX lexinfo: <http://www.lexinfo.net/ontology/3.0/lexinfo#>\nPREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>\n\nSELECT ?partWord ?sense\nWHERE {\n  # Query runs against an external SPARQL endpoint of LiITA lemma bank\n  SERVICE <https://klab.ilc.cnr.it/graphdb-compl-it/> {\n    \n    # Retrieve a lemma ?word with a canonical form whose written representation (?wrIta) is \"corpo\"\n    ?word ontolex:canonicalForm [ ontolex:writtenRep ?wrIta ] ;\n          ontolex:sense ?sense .\n    # Filter to select only the lemma \"corpo\" in Italian\n    FILTER( STR(?wrIta) = \"corpo\" ) .\n    \n    # Retrieve meronym senses (?partSense) that are partMeronyms of the sense of \"corpo\"\n    ?partSense lexinfo:partMeronym ?sense .\n    \n    # For each partSense get the lemma (?partLemma) with that sense and its canonical written form (?partWord)\n    ?partLemma ontolex:sense ?partSense ;\n               ontolex:canonicalForm [ ontolex:writtenRep ?partWord ] .\n  }\n}\nLIMIT 10\n# Limits output to 10 part words representing parts of the \"corpo\" lemma",
-    "nl": "Find Meronyms of \"corpo\" (hand);  find all Italian words that represent parts of a 'corpo' (body)",
+    "nl": "Find Meronyms of \"corpo\" (body);  find all Italian words that represent parts of a 'corpo' (body)",
     "nl_variants": {
       "generic": "List Italian words that are parts of the word 'corpo' (body).",
       "linguist": "Retrieve the Italian lexical items that denote meronyms, or parts, of the lemma 'corpo'.",
@@ -1320,6 +1323,7 @@
       "pedagogical": "This query aims to find every morphological form of the Italian verb 'amare'. It starts from the lemma 'amare' as the canonical base form, then looks up all related inflected forms such as conjugations, collecting their written forms and any available grammatical information about their patterns."
     },
     "patterns": {
+      "LEXICAL_FORM": 0.9,
       "MORPHO_REGEX": 0.7,
       "POS_FILTER": 0.2,
       "SENSE_DEFINITION": 0.1
@@ -1336,6 +1340,7 @@
       "pedagogical": "This query collects all the different morphological forms of the Italian word \"gatto\" available in the LiITA database. It finds both the base form (lemma) and any inflected variants, providing details on their grammatical characteristics such as whether they are singular or plural, their gender (masculine or feminine), and the grammatical case they represent. This helps understand how the word changes form depending on its grammatical role."
     },
     "patterns": {
+      "LEXICAL_FORM": 0.9,
       "MORPHO_REGEX": 0.9,
       "POS_FILTER": 0.6,
       "SENSE_DEFINITION": 0.2
@@ -1352,6 +1357,7 @@
       "pedagogical": "This query aims to find the number of distinct morphological (inflected) forms associated with the Italian verb lemma \"fare\". It counts all unique written forms linked to the lemma, including the canonical form and all inflected variants, to provide the total number of recognized morphological forms in the LiITA lexical resource."
     },
     "patterns": {
+      "LEXICAL_FORM": 0.9,
       "SENSE_COUNT": 0.7,
       "MORPHO_REGEX": 0.8,
       "COUNT_ENTITIES": 0.6
@@ -1368,9 +1374,9 @@
       "pedagogical": "This query aims to find every conjugated form of the Italian verb \"parlare.\" For each form, it shows the tense (like present or past), mood (such as indicative or subjunctive), grammatical person (first, second, or third), and number (singular or plural). This helps users understand all verb forms and their grammatical contexts."
     },
     "patterns": {
+      "LEXICAL_FORM": 0.9,
       "MORPHO_REGEX": 0.9,
-      "POS_FILTER": 0.7,
-      "SEMANTIC_RELATION": 0.1
+      "POS_FILTER": 0.7
     }
   },
   {
@@ -1384,9 +1390,9 @@
       "pedagogical": "This query aims to obtain every inflected variant of the Italian lemma 'grande' from the LiITA Lemma Bank, presenting for each form a single string that groups together its morphological characteristics such as number and gender. The goal is to provide a clear, compact summary of the word forms and their grammatical information."
     },
     "patterns": {
+      "LEXICAL_FORM": 0.9,
       "MORPHO_REGEX": 0.9,
-      "POS_FILTER": 0.3,
-      "SENSE_DEFINITION": 0.1
+      "POS_FILTER": 0.3
     }
   },
   {
@@ -1400,9 +1406,9 @@
       "pedagogical": "This query looks for word forms connected to the Italian lemma \"essere\" that differ notably from the lemma itself\u2014specifically, forms whose first three letters are different from those of the lemma. This helps find irregular verbs or nouns by focusing on forms that do not closely resemble the base word."
     },
     "patterns": {
+      "LEXICAL_FORM": 0.9,
       "MORPHO_REGEX": 0.9,
-      "POS_FILTER": 0.3,
-      "SENSE_DEFINITION": 0.1
+      "POS_FILTER": 0.3
     }
   },
   {

@@ -28,6 +28,7 @@ from .tools import (
     handle_execute_sparql,
     handle_fix_case_sensitivity,
     handle_check_variable_reuse,
+    handle_fix_service_clause,
 )
 from .resources import (
     get_ontology_catalog,
@@ -375,6 +376,25 @@ class NL2SPARQLMCPServer:
                         "required": ["sparql"],
                     },
                 ),
+                Tool(
+                    name="fix_service_clause",
+                    description=(
+                        "Remove SERVICE clause wrapper from SPARQL query. "
+                        "Use this when you get permission errors like 'SPARUL LOAD SERVICE DATA access denied' "
+                        "or other federated query errors. The fix removes the SERVICE wrapper and keeps "
+                        "the triple patterns inside, executing them against the local LiITA endpoint."
+                    ),
+                    inputSchema={
+                        "type": "object",
+                        "properties": {
+                            "sparql": {
+                                "type": "string",
+                                "description": "SPARQL query with SERVICE clause to fix",
+                            },
+                        },
+                        "required": ["sparql"],
+                    },
+                ),
             ]
 
         # ========== TOOL CALLING ==========
@@ -501,6 +521,10 @@ class NL2SPARQLMCPServer:
         elif name == "check_variable_reuse":
             # Light operation
             return handle_check_variable_reuse(arguments)
+
+        elif name == "fix_service_clause":
+            # Light operation
+            return handle_fix_service_clause(arguments)
 
         else:
             raise ValueError(f"Unknown tool: {name}")
