@@ -354,20 +354,34 @@ The UI opens at `http://localhost:7860` by default.
 | Tab | Description |
 |-----|-------------|
 | **Translate** | Convert natural language questions to SPARQL with validation and sample results |
+| **Agent Translate** | LangGraph agent with self-correction (analyze → plan → retrieve → generate → execute → verify → refine) |
 | **Analyze Patterns** | Detect query patterns without generating SPARQL |
 | **Retrieve Examples** | Retrieve similar query examples from the dataset |
 | **Search Ontology** | Browse and search classes/properties in the LiITA ontology |
 | **Execute SPARQL** | Run SPARQL queries directly against the LiITA endpoint |
-| **Fix Query** | Auto-fix case-sensitive string filters |
+| **Fix Query** | Auto-fix case-sensitive string filters, and variable reuse issues |
 
-#### Screenshot
+#### Translate Tab
 
-The Translate tab shows:
+The standard Translate tab shows:
 - Input field for natural language questions
 - Generated SPARQL query with syntax highlighting
 - Detected patterns and confidence score
 - Validation status (syntax, endpoint)
 - Sample results from the query
+
+#### Agent Translate Tab
+
+The **Agent Translate** tab uses the LangGraph-powered `NL2SPARQLAgent` which can:
+- Analyze the question and detect patterns
+- Plan the query structure
+- Retrieve similar examples for few-shot learning
+- Generate an initial SPARQL query
+- Execute and verify the query against the endpoint
+- **Self-correct** if errors occur (up to 3 attempts)
+
+Watch the agent work through each step in real-time with streaming updates.
+
 
 ### Web UI (Gradio Agent)
 

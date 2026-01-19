@@ -19,10 +19,12 @@ Features:
 
 import argparse
 import json
+from typing import Generator
 
 import gradio as gr
 
 from nl2sparql import NL2SPARQL, LIITA_ENDPOINT
+from nl2sparql.agent import NL2SPARQLAgent
 from nl2sparql.mcp.tools import (
     handle_infer_patterns,
     handle_search_ontology,
@@ -37,6 +39,7 @@ from nl2sparql.retrieval import OntologyRetriever
 # Global instances (initialized on startup)
 translator: NL2SPARQL | None = None
 ontology_retriever: OntologyRetriever | None = None
+agent: NL2SPARQLAgent | None = None
 
 
 def init_translator(provider: str, model: str | None, api_key: str | None):
@@ -56,6 +59,21 @@ def init_ontology_retriever():
     """Initialize the ontology retriever."""
     global ontology_retriever
     ontology_retriever = OntologyRetriever()
+
+
+def init_agent(provider: str, model: str | None, api_key: str | None):
+    """Initialize the NL2SPARQL agent."""
+    global agent
+    try:
+        agent = NL2SPARQLAgent(
+            provider=provider,
+            model=model,
+            api_key=api_key,
+        )
+    except ImportError as e:
+        print(f"Warning: Could not initialize agent: {e}")
+        print("Install with: pip install nl2sparql[agent-openai] or similar")
+        agent = None
 
 
 def translate_question(question: str) -> tuple[str, str, str, str, str]:
@@ -361,7 +379,166 @@ def fix_query_issues(sparql: str) -> tuple[str, str]:
     except Exception as e:
         import traceback
         return sparql, f"**Error:** {str(e)}\n\n```\n{traceback.format_exc()}\n```"
-      
+
+
+def agent_translate_streaming(question: str) -> Generator[tuple[str, str, str, str], None, None]:
+    """
+    Translate using the LangGraph agent with streaming step updates.
+
+    Yields: (sparql, steps_log, result_info, refinement_history)
+    """
+    if not agent:
+        yield "", "**Error:** Agent not initialized.\n\nInstall with: `pip install nl2sparql[agent-openai]`", "", ""
+        return
+
+    if not question.strip():
+        yield "", "Please enter a question", "", ""
+        return
+
+    try:
+        current_sparql = ""
+        result_info = ""
+        refinement_history = ""
+
+        # Track step execution
+        step_results = {}
+        completed_steps = []
+
+        # Define step order and descriptions (matching actual LangGraph nodes)
+        step_descriptions = {
+            "analyze": "Analyze question and detect patterns",
+            "plan": "Plan query structure",
+            "retrieve": "Retrieve similar examples",
+            "generate": "Generate SPARQL query",
+            "execute": "Execute query against endpoint",
+            "verify": "Verify results",
+            "refine": "Refine query based on errors",
+            "explore": "Explore schema for alternatives",
+            "output": "Finalize result",
+        }
+
+        for node_name, state in agent.stream(question):
+            # Update step results
+            step_results[node_name] = dict(state)
+            if node_name not in completed_steps:
+                completed_steps.append(node_name)
+
+            # Get SPARQL from state (check multiple keys)
+            sparql = state.get("final_sparql") or state.get("generated_sparql") or ""
+            if sparql:
+                current_sparql = sparql
+
+            # Rebuild the log showing all completed steps
+            steps_log = "## Agent Steps\n\n"
+
+            for step in completed_steps:
+                s = step_results.get(step, {})
+                steps_log += f"### ✅ {step.upper()}\n\n"
+                steps_log += f"*{step_descriptions.get(step, '')}*\n\n"
+
+                # Show step-specific details
+                if step == "analyze":
+                    patterns = s.get("detected_patterns", [])
+                    if patterns:
+                        steps_log += f"**Patterns:** {', '.join(patterns)}\n\n"
+
+                elif step == "plan":
+                    complexity = s.get("query_complexity", "")
+                    if complexity:
+                        steps_log += f"**Complexity:** {complexity}\n\n"
+
+                elif step == "retrieve":
+                    examples = s.get("retrieved_examples", [])
+                    if examples:
+                        steps_log += f"**Retrieved:** {len(examples)} examples\n\n"
+
+                elif step == "generate":
+                    gen_sparql = s.get("generated_sparql", "")
+                    if gen_sparql:
+                        steps_log += f"**Generated query** ({len(gen_sparql)} chars)\n\n"
+
+                elif step == "execute":
+                    count = s.get("result_count")
+                    if count is not None:
+                        steps_log += f"**Results:** {count} rows\n\n"
+                    exec_err = s.get("execution_error")
+                    if exec_err:
+                        steps_log += f"**Error:** {exec_err}\n\n"
+
+                elif step == "verify":
+                    is_valid = s.get("is_valid", False)
+                    icon = "✅" if is_valid else "❌"
+                    steps_log += f"**Valid:** {icon}\n\n"
+                    if s.get("validation_errors"):
+                        steps_log += f"**Issues:** {', '.join(s['validation_errors'])}\n\n"
+
+                elif step == "refine":
+                    steps_log += "**Query refined for retry**\n\n"
+
+                elif step == "explore":
+                    steps_log += "**Schema explored for alternatives**\n\n"
+
+                elif step == "output":
+                    conf = s.get("confidence", 0)
+                    steps_log += f"**Confidence:** {conf:.1%}\n\n"
+
+                steps_log += "---\n\n"
+
+            # Update result info
+            if state.get("result_count") is not None:
+                count = state["result_count"]
+                if count > 0:
+                    result_info = f"### ✅ Results: {count} rows\n\n"
+                    if state.get("sample_results"):
+                        result_info += "**Sample:**\n\n"
+                        for i, row in enumerate(state["sample_results"][:5]):
+                            result_info += f"{i+1}. {row}\n"
+                else:
+                    result_info = "### ⚠️ No Results\n\nQuery executed but returned 0 rows."
+
+            # Update refinement history
+            if state.get("refinement_history"):
+                refinement_history = "### Refinement History\n\n"
+                for i, attempt in enumerate(state["refinement_history"]):
+                    refinement_history += f"**Attempt {i+1}:**\n\n"
+                    if attempt.get("error"):
+                        refinement_history += f"- Error: {attempt['error']}\n"
+                    if attempt.get("sparql"):
+                        sparql_preview = attempt['sparql'][:80] + "..." if len(attempt['sparql']) > 80 else attempt['sparql']
+                        refinement_history += f"- Query: `{sparql_preview}`\n"
+                    refinement_history += "\n"
+
+            yield current_sparql, steps_log, result_info, refinement_history
+
+        # Final completion message
+        if "output" in step_results:
+            final_state = step_results["output"]
+
+            # Make sure we have the final SPARQL
+            final_sparql = final_state.get("final_sparql") or final_state.get("generated_sparql") or current_sparql
+            if final_sparql:
+                current_sparql = final_sparql
+
+            # Add completion banner
+            steps_log += "## ✅ COMPLETED\n\n"
+
+            conf = final_state.get("confidence", 0)
+            conf_bar = "█" * int(conf * 10) + "░" * (10 - int(conf * 10))
+            steps_log += f"**Confidence:** {conf:.1%} [{conf_bar}]\n\n"
+
+            attempts = final_state.get("generation_attempts", 1)
+            steps_log += f"**Attempts:** {attempts}\n\n"
+
+            is_valid = final_state.get("is_valid", False)
+            steps_log += f"**Valid:** {'✅ Yes' if is_valid else '❌ No'}\n"
+
+        yield current_sparql, steps_log, result_info, refinement_history
+
+    except Exception as e:
+        import traceback
+        yield "", f"**Error:** {str(e)}\n\n```\n{traceback.format_exc()}\n```", "", ""
+
+
 def create_ui() -> gr.Blocks:
     """Create the Gradio UI."""
 
@@ -421,7 +598,63 @@ def create_ui() -> gr.Blocks:
                     inputs=[question_input],
                 )
 
-            # Tab 2: Pattern Analysis
+            # Tab 2: Agent Translate
+            with gr.TabItem("Agent Translate"):
+                gr.Markdown("""
+                ### LangGraph Agent Translation
+
+                This tab uses the **NL2SPARQLAgent** (powered by LangGraph) which can:
+                - Analyze the question and detect patterns
+                - Generate an initial SPARQL query
+                - Execute and verify the query
+                - **Self-correct** if errors occur (up to 3 attempts)
+
+                Watch the agent work through each step in real-time.
+                """)
+
+                with gr.Row():
+                    agent_question_input = gr.Textbox(
+                        label="Natural Language Question",
+                        placeholder="e.g., Quali lemmi esprimono tristezza?",
+                        lines=2,
+                        scale=4,
+                    )
+                agent_translate_btn = gr.Button("Translate with Agent", variant="primary")
+
+                with gr.Row():
+                    # Left column: SPARQL output
+                    with gr.Column(scale=2):
+                        agent_sparql_output = gr.Code(
+                            label="Generated SPARQL",
+                            language="sql",
+                            lines=12,
+                        )
+                        agent_result_output = gr.Markdown(label="Results")
+
+                    # Right column: Agent steps
+                    with gr.Column(scale=1):
+                        agent_steps_output = gr.Markdown(label="Agent Steps")
+                        with gr.Accordion("Refinement History", open=False):
+                            agent_history_output = gr.Markdown(label="History")
+
+                agent_translate_btn.click(
+                    agent_translate_streaming,
+                    inputs=[agent_question_input],
+                    outputs=[agent_sparql_output, agent_steps_output, agent_result_output, agent_history_output],
+                )
+
+                gr.Examples(
+                    examples=[
+                        ["Quali lemmi esprimono tristezza?"],
+                        ["Trova le traduzioni siciliane di 'casa'"],
+                        ["Quali sono gli iperonimi di 'cane'?"],
+                        ["Trova aggettivi con emozioni positive"],
+                        ["Quanti sensi ha la parola 'banco'?"],
+                    ],
+                    inputs=[agent_question_input],
+                )
+
+            # Tab 3: Pattern Analysis
             with gr.TabItem("Analyze Patterns"):
                 pattern_input = gr.Textbox(
                     label="Question to Analyze",
@@ -437,7 +670,7 @@ def create_ui() -> gr.Blocks:
                     outputs=[pattern_output],
                 )
 
-            # Tab 3: Retrieve Examples
+            # Tab 4: Retrieve Examples
             with gr.TabItem("Retrieve Examples"):
                 gr.Markdown("""
                 ### Example Retrieval
@@ -467,7 +700,7 @@ def create_ui() -> gr.Blocks:
                     outputs=[retrieve_output],
                 )
 
-            # Tab 4: Search Ontology
+            # Tab 5: Search Ontology
             with gr.TabItem("Search Ontology"):
                 with gr.Row():
                     onto_query = gr.Textbox(
@@ -492,7 +725,7 @@ def create_ui() -> gr.Blocks:
                     outputs=[onto_output],
                 )
 
-            # Tab 5: Execute Query
+            # Tab 6: Execute Query
             with gr.TabItem("Execute SPARQL"):
                 exec_sparql = gr.Code(
                     label="SPARQL Query",
@@ -513,7 +746,7 @@ def create_ui() -> gr.Blocks:
                     outputs=[exec_output],
                 )
 
-            # Tab 6: Fix Query
+            # Tab 7: Fix Query
             with gr.TabItem("Fix Query"):
                 gr.Markdown("""
                 ### SPARQL Query Fixer
@@ -598,6 +831,8 @@ def main():
     init_translator(args.provider, args.model, args.api_key)
     print("Initializing ontology retriever...")
     init_ontology_retriever()
+    print("Initializing agent...")
+    init_agent(args.provider, args.model, args.api_key)
     print("Starting web UI...")
 
     app = create_ui()
