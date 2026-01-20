@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "liita-nl2sparql"
-version = "0.7.0"
+version = "0.7.1"
 description = "Natural Language to SPARQL translation for the LiITA knowledge base"
 readme = "README.md"
 license = "MIT"
