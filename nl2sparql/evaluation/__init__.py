@@ -11,6 +11,13 @@ from .evaluate import (
     AgentAdapter,
 )
 
+from .f1_evaluator import (
+    F1Evaluator,
+    F1Result,
+    F1Report,
+    save_f1_report,
+)
+
 from .batch_evaluate import (
     ModelConfig,
     BatchResult,
@@ -31,6 +38,11 @@ __all__ = [
     "save_report",
     # Agent support
     "AgentAdapter",
+    # F1 evaluation
+    "F1Evaluator",
+    "F1Result",
+    "F1Report",
+    "save_f1_report",
     # Batch evaluation
     "ModelConfig",
     "BatchResult",

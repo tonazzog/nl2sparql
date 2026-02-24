@@ -15,12 +15,12 @@ GRAPH <http://w3id.org/elita> {
 
 # Lemmas are in the main data graph
 GRAPH <http://liita.it/data> {
-    ?lemma a lila:Lemma .
-    ?lemma ontolex:writtenRep ?wr .
+    ?italianLemma a lila:Lemma .
+    ?italianLemma ontolex:writtenRep ?italianWord .
 }
 
 # Link them OUTSIDE the graphs:
-?expression ontolex:canonicalForm ?lemma .
+?emotionEntry ontolex:canonicalForm ?italianLemma .
 ```
 
 ### 2. CORRECT LINKING PATTERN (CRITICAL):
@@ -68,18 +68,18 @@ FILTER regex(str(?emotionLabel), "gioia", "i")  # Specific emotion
 
 **Template A: Basic Emotion Query**
 ```sparql
-SELECT DISTINCT ?wr ?emotionLabel ?polarityValue
+SELECT DISTINCT ?italianWord ?emotionLabel ?polarityValue
 WHERE {
   GRAPH <http://liita.it/data> {
-    ?lemma a lila:Lemma ;
-           ontolex:writtenRep ?wr .
+    ?italianLemma a lila:Lemma ;
+                  ontolex:writtenRep ?italianWord .
   }
 
-  ?lexEntry ontolex:canonicalForm ?lemma .
+  ?emotionEntry ontolex:canonicalForm ?italianLemma .
 
   GRAPH <http://w3id.org/elita> {
-    ?lexEntry elita:HasEmotion ?emotion ;
-              marl:hasPolarityValue ?polarityValue .
+    ?emotionEntry elita:HasEmotion ?emotion ;
+                  marl:hasPolarityValue ?polarityValue .
     ?emotion rdfs:label ?emotionLabel .
   }
 }
@@ -88,18 +88,18 @@ LIMIT 50
 
 **Template B: Emotion + POS Filter**
 ```sparql
-SELECT DISTINCT ?wr ?emotionLabel ?pos
+SELECT DISTINCT ?italianWord ?emotionLabel ?pos
 WHERE {
   GRAPH <http://liita.it/data> {
-    ?lemma a lila:Lemma ;
-           lila:hasPOS ?pos ;
-           ontolex:writtenRep ?wr .
+    ?italianLemma a lila:Lemma ;
+                  lila:hasPOS ?pos ;
+                  ontolex:writtenRep ?italianWord .
   }
 
-  ?lexEntry ontolex:canonicalForm ?lemma .
+  ?emotionEntry ontolex:canonicalForm ?italianLemma .
 
   GRAPH <http://w3id.org/elita> {
-    ?lexEntry elita:HasEmotion ?emotion .
+    ?emotionEntry elita:HasEmotion ?emotion .
     ?emotion rdfs:label ?emotionLabel .
   }
 
@@ -110,18 +110,18 @@ LIMIT 50
 
 **Template C: Multiple Emotions**
 ```sparql
-SELECT DISTINCT ?wr
+SELECT DISTINCT ?italianWord
 WHERE {
   GRAPH <http://liita.it/data> {
-    ?lemma a lila:Lemma ;
-           ontolex:writtenRep ?wr .
+    ?italianLemma a lila:Lemma ;
+                  ontolex:writtenRep ?italianWord .
   }
 
-  ?lexEntry ontolex:canonicalForm ?lemma .
+  ?emotionEntry ontolex:canonicalForm ?italianLemma .
 
   GRAPH <http://w3id.org/elita> {
-    ?lexEntry elita:HasEmotion ?emotion1 ;
-              elita:HasEmotion ?emotion2 .
+    ?emotionEntry elita:HasEmotion ?emotion1 ;
+                  elita:HasEmotion ?emotion2 .
     ?emotion1 rdfs:label ?label1 .
     ?emotion2 rdfs:label ?label2 .
   }
@@ -138,15 +138,15 @@ EMOTION_COMBINATION_PATTERNS = {
     ("basic", "emotion"): {
         "mandatory_structure": """
         GRAPH <http://liita.it/data> {
-            ?lemma a lila:Lemma ;
-                   lila:hasPOS ?pos ;
-                   ontolex:writtenRep ?wr .
+            ?italianLemma a lila:Lemma ;
+                          lila:hasPOS ?pos ;
+                          ontolex:writtenRep ?italianWord .
         }
 
-        ?lexEntry ontolex:canonicalForm ?lemma .
+        ?emotionEntry ontolex:canonicalForm ?italianLemma .
 
         GRAPH <http://w3id.org/elita> {
-            ?lexEntry elita:HasEmotion ?emotion .
+            ?emotionEntry elita:HasEmotion ?emotion .
             ?emotion rdfs:label ?emotionLabel .
         }
         """,
@@ -161,46 +161,47 @@ EMOTION_COMBINATION_PATTERNS = {
     ("translation", "emotion"): {
         "mandatory_structure": """
         GRAPH <http://liita.it/data> {
-            ?lemma a lila:Lemma ;
-                   ontolex:writtenRep ?italian .
+            ?italianLemma a lila:Lemma ;
+                          ontolex:writtenRep ?italianWord .
         }
 
-        ?lexEntry ontolex:canonicalForm ?lemma ;
-                  vartrans:translatableAs ?dialectLemma .
+        ?emotionEntry ontolex:canonicalForm ?italianLemma ;
+                      vartrans:translatableAs ?dialectLexEntry .
 
-        ?dialectLemma ontolex:writtenRep ?dialect .
+        ?dialectLexEntry ontolex:canonicalForm ?dialectLemma .
+        ?dialectLemma ontolex:writtenRep ?dialectWord .
 
         GRAPH <http://w3id.org/elita> {
-            ?lexEntry elita:HasEmotion ?emotion ;
-                      marl:hasPolarityValue ?polarityValue .
+            ?emotionEntry elita:HasEmotion ?emotion ;
+                          marl:hasPolarityValue ?polarityValue .
             ?emotion rdfs:label ?emotionLabel .
         }
         """,
         "example": "Find Italian words with Sicilian translations that express sadness",
         "key_points": [
             "Translations link to lexical entries, not directly to lemmas",
-            "Emotions attached to Italian lexEntry",
+            "Emotions attached to Italian emotionEntry",
             "Dialect lemma gets writtenRep outside graphs",
         ],
     },
     ("sense_definition", "emotion"): {
         "mandatory_structure": """
         GRAPH <http://liita.it/data> {
-            ?lemma a lila:Lemma ;
-                   ontolex:writtenRep ?wr .
+            ?italianLemma a lila:Lemma ;
+                          ontolex:writtenRep ?italianWord .
         }
 
-        ?lexEntry ontolex:canonicalForm ?lemma .
+        ?emotionEntry ontolex:canonicalForm ?italianLemma .
 
         GRAPH <http://w3id.org/elita> {
-            ?lexEntry elita:HasEmotion ?emotion ;
-                      marl:hasPolarityValue ?polarity .
+            ?emotionEntry elita:HasEmotion ?emotion ;
+                          marl:hasPolarityValue ?polarityValue .
             ?emotion rdfs:label ?emotionLabel .
         }
 
         # Federated query for definitions
         SERVICE <https://klab.ilc.cnr.it/graphdb-compl-it/> {
-            ?word ontolex:canonicalForm [ ontolex:writtenRep ?wr ] ;
+            ?word ontolex:canonicalForm [ ontolex:writtenRep ?italianWord ] ;
                   ontolex:sense ?sense .
             ?sense skos:definition ?definition .
         }
@@ -208,7 +209,7 @@ EMOTION_COMBINATION_PATTERNS = {
         "example": "Get definitions and emotions for highly positive words",
         "key_points": [
             "Definitions come from external SERVICE",
-            "Match lemmas via writtenRep",
+            "Match lemmas via italianWord (same variable creates join)",
             "Emotions from ELITA graph",
             "Filter polarity before SERVICE call",
         ],

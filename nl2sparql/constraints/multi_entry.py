@@ -16,14 +16,14 @@ This is the #1 source of errors in synthetic queries.
 In LiIta, a SINGLE LEMMA can have MULTIPLE LEXICAL ENTRIES from different datasets:
 
 ```
-         ?lemma (lila:Lemma) "triste"
+         ?italianLemma (lila:Lemma) "triste"
                     |
                     | ontolex:canonicalForm
         +-----------+-----------+--------------+
         |           |           |              |
-   ?elitaEntry  ?sentixEntry  ?transEntry  ?senseEntry
-   [ELITA graph] [no graph]   [no graph]   [SERVICE]
-   - HasEmotion  - Polarity   - translation - definition
+   ?emotionEntry  ?polarityEntry  ?translationEntry  ?senseEntry
+   [ELITA graph]   [no graph]      [no graph]        [SERVICE]
+   - HasEmotion    - Polarity      - translation     - definition
 ```
 
 ### WHY THIS MATTERS:
@@ -52,25 +52,25 @@ GRAPH <http://w3id.org/elita> {
 ### CORRECT PATTERN (MANDATORY):
 ```sparql
 # Step 1: Get the lemma (join point)
-?lemma a lila:Lemma ;
-       ontolex:writtenRep ?word .
+?italianLemma a lila:Lemma ;
+              ontolex:writtenRep ?italianWord .
 
 # Step 2: Emotion entry (in ELITA graph)
-?emotionEntry ontolex:canonicalForm ?lemma .
+?emotionEntry ontolex:canonicalForm ?italianLemma .
 GRAPH <http://w3id.org/elita> {
     ?emotionEntry elita:HasEmotion ?emotion .
     ?emotion rdfs:label ?emotionLabel .
 }
 
 # Step 3: Polarity entry (DIFFERENT entry, OUTSIDE graphs)
-?polarityEntry ontolex:canonicalForm ?lemma ;
+?polarityEntry ontolex:canonicalForm ?italianLemma ;
                marl:hasPolarity ?polarity ;
                marl:hasPolarityValue ?polarityValue .
 ?polarity rdfs:label ?polarityLabel .
 
 # Step 4: Translation entry (DIFFERENT entry, OUTSIDE graphs)
-?translationEntry ontolex:canonicalForm ?lemma ;
-                  vartrans:translatableAs ?dialectEntry .
+?translationEntry ontolex:canonicalForm ?italianLemma ;
+                  vartrans:translatableAs ?dialectLexEntry .
 
 # The LEMMA is the JOIN POINT connecting all entries!
 ```

@@ -110,8 +110,8 @@ SERVICE <https://klab.ilc.cnr.it/graphdb-compl-it/> {
 **Example: Find synonyms with their POS from LiITA**
 ```sparql
 SERVICE <https://klab.ilc.cnr.it/graphdb-compl-it/> {
-    ?word ontolex:canonicalForm [ ontolex:writtenRep ?wr ] .
-    FILTER(STR(?wr) = "veloce")
+    ?word ontolex:canonicalForm [ ontolex:writtenRep ?writtenRep ] .
+    FILTER(STR(?writtenRep) = "veloce")
 
     ?word ontolex:sense ?sense .
 
@@ -123,12 +123,12 @@ SERVICE <https://klab.ilc.cnr.it/graphdb-compl-it/> {
 }
 
 # Link to LiITA using shared URI
-?synonymWord ontolex:canonicalForm ?liitaLemma .
+?synonymWord ontolex:canonicalForm ?italianLemma .
 
 GRAPH <http://liita.it/data> {
-    ?liitaLemma a lila:Lemma ;
-               lila:hasPOS ?pos ;
-               ontolex:writtenRep ?synonymWr .
+    ?italianLemma a lila:Lemma ;
+                  lila:hasPOS ?pos ;
+                  ontolex:writtenRep ?synonymWrittenRep .
 }
 ```
 

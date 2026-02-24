@@ -60,11 +60,11 @@ Multiple Lexical Entries:
 ### Basic Pattern:
 ```sparql
 GRAPH <http://liita.it/data> {
-    ?lemma a lila:Lemma ;
-           ontolex:writtenRep ?wr .
+    ?italianLemma a lila:Lemma ;
+                  ontolex:writtenRep ?italianWord .
 }
 
-?emotionEntry ontolex:canonicalForm ?lemma .
+?emotionEntry ontolex:canonicalForm ?italianLemma .
 
 GRAPH <http://w3id.org/elita> {
     ?emotionEntry elita:HasEmotion ?emotion .
@@ -74,12 +74,12 @@ GRAPH <http://w3id.org/elita> {
 
 ### With Polarity (DIFFERENT entry!):
 ```sparql
-?emotionEntry ontolex:canonicalForm ?lemma .
+?emotionEntry ontolex:canonicalForm ?italianLemma .
 GRAPH <http://w3id.org/elita> {
     ?emotionEntry elita:HasEmotion ?emotion .
 }
 
-?polarityEntry ontolex:canonicalForm ?lemma ;
+?polarityEntry ontolex:canonicalForm ?italianLemma ;
                marl:hasPolarityValue ?polarityValue .
 ```
 
@@ -95,13 +95,13 @@ GRAPH <http://w3id.org/elita> {
 
 ### Basic Pattern:
 ```sparql
-?lemma a lila:Lemma ;
-       ontolex:writtenRep ?italianWord .
+?italianLemma a lila:Lemma ;
+              ontolex:writtenRep ?italianWord .
 
-?translationEntry ontolex:canonicalForm ?lemma ;
-                  vartrans:translatableAs ?dialectEntry .
+?translationEntry ontolex:canonicalForm ?italianLemma ;
+                  vartrans:translatableAs ?dialectLexEntry .
 
-?dialectEntry ontolex:canonicalForm ?dialectLemma .
+?dialectLexEntry ontolex:canonicalForm ?dialectLemma .
 ?dialectLemma ontolex:writtenRep ?dialectWord .
 ```
 
@@ -111,7 +111,7 @@ GRAPH <http://w3id.org/elita> {
 ?sicilianLemma dcterms:isPartOf <http://liita.it/data/id/DialettoSiciliano/lemma/LemmaBank> .
 
 # Parmigiano (uses ^lime:entry)
-?parmigianoEntry ^lime:entry <http://liita.it/data/id/LexicalReources/DialettoParmigiano/Lexicon> .
+?parmigianoLexEntry ^lime:entry <http://liita.it/data/id/LexicalReources/DialettoParmigiano/Lexicon> .
 ```
 
 **KEY RULES:**
@@ -127,23 +127,23 @@ GRAPH <http://w3id.org/elita> {
 ### Basic Sense/Definition:
 ```sparql
 SERVICE <https://klab.ilc.cnr.it/graphdb-compl-it/> {
-    ?word ontolex:canonicalForm [ ontolex:writtenRep ?wr ] ;
+    ?word ontolex:canonicalForm [ ontolex:writtenRep ?writtenRep ] ;
           ontolex:sense [ skos:definition ?definition ] .
-    FILTER(STR(?wr) = "target_word")
+    FILTER(STR(?writtenRep) = "target_word")
 }
 ```
 
 ### Semantic Relations:
 ```sparql
 SERVICE <https://klab.ilc.cnr.it/graphdb-compl-it/> {
-    ?word ontolex:canonicalForm [ ontolex:writtenRep ?wr ] ;
+    ?word ontolex:canonicalForm [ ontolex:writtenRep ?writtenRep ] ;
           ontolex:sense ?sense .
-    FILTER(STR(?wr) = "veicolo")
+    FILTER(STR(?writtenRep) = "veicolo")
 
     # Find hypernyms (more general)
     ?sense lexinfo:hypernym ?hypSense .
     ?hypWord ontolex:sense ?hypSense ;
-             ontolex:canonicalForm [ ontolex:writtenRep ?hypernym ] .
+             ontolex:canonicalForm [ ontolex:writtenRep ?hypernymWord ] .
 }
 ```
 
@@ -171,7 +171,7 @@ SERVICE <https://klab.ilc.cnr.it/graphdb-compl-it/> {
 }
 
 # Use ?wordMeronym directly in LiIta - NO string matching needed!
-?wordMeronym ontolex:canonicalForm ?liitaLemma .
+?wordMeronym ontolex:canonicalForm ?italianLemma .
 ```
 
 ### CRITICAL: Filter Order with SERVICE
@@ -186,13 +186,13 @@ When you need definitions + filtering (e.g., REGEX), you MUST:
 # CORRECT: Filter INSIDE SERVICE, then link to LiIta
 SERVICE <https://klab.ilc.cnr.it/graphdb-compl-it/> {
     ?word ontolex:sense [ skos:definition ?definition ] ;
-          ontolex:canonicalForm [ ontolex:writtenRep ?wr ] .
-    FILTER(REGEX(?wr, "zione$", "i"))  # Filter HERE, inside SERVICE
+          ontolex:canonicalForm [ ontolex:writtenRep ?writtenRep ] .
+    FILTER(REGEX(?writtenRep, "zione$", "i"))  # Filter HERE, inside SERVICE
 }
 
-?word ontolex:canonicalForm ?liitaLemma .
+?word ontolex:canonicalForm ?italianLemma .
 GRAPH <http://liita.it/data> {
-    ?liitaLemma lila:hasPOS lila:noun .  # LiIta-specific filter goes here
+    ?italianLemma lila:hasPOS lila:noun .  # LiIta-specific filter goes here
 }
 ```
 
@@ -205,18 +205,18 @@ GRAPH <http://liita.it/data> {
 # Start with SERVICE to get words with definitions
 SERVICE <https://klab.ilc.cnr.it/graphdb-compl-it/> {
     ?word ontolex:sense [ skos:definition ?definition ] ;
-          ontolex:canonicalForm [ ontolex:writtenRep ?wr ] .
+          ontolex:canonicalForm [ ontolex:writtenRep ?writtenRep ] .
 }
 
 # Link to LiIta using shared URI
-?word ontolex:canonicalForm ?lemma .
+?word ontolex:canonicalForm ?italianLemma .
 GRAPH <http://liita.it/data> {
-    ?lemma a lila:Lemma ;
-           lila:hasPOS lila:noun .
+    ?italianLemma a lila:Lemma ;
+                  lila:hasPOS lila:noun .
 }
 
-# Emotion (uses same ?lemma)
-?emotionEntry ontolex:canonicalForm ?lemma .
+# Emotion (uses same ?italianLemma)
+?emotionEntry ontolex:canonicalForm ?italianLemma .
 GRAPH <http://w3id.org/elita> {
     ?emotionEntry elita:HasEmotion ?emotion .
 }
@@ -230,14 +230,14 @@ GRAPH <http://w3id.org/elita> {
 
 | Property | Location | Variable |
 |----------|----------|----------|
-| lila:Lemma | GRAPH <...data> | ?lemma |
-| lila:hasPOS | GRAPH <...data> | ?lemma |
-| ontolex:writtenRep (on lemma) | GRAPH <...data> | ?lemma |
+| lila:Lemma | GRAPH <...data> | ?italianLemma |
+| lila:hasPOS | GRAPH <...data> | ?italianLemma |
+| ontolex:writtenRep (on lemma) | GRAPH <...data> | ?italianLemma → ?italianWord |
 | elita:HasEmotion | GRAPH <...elita> | ?emotionEntry |
 | marl:hasPolarity | NO GRAPH | ?polarityEntry |
 | vartrans:translatableAs | NO GRAPH | ?translationEntry |
 | ontolex:sense | SERVICE | ?word |
-| skos:definition | SERVICE | ?sense |
+| skos:definition | SERVICE | ?sense → ?definition |
 | lexinfo:hypernym | SERVICE | ?sense |
 
 **Cross-endpoint linking**: Variables like `?word` bound in SERVICE can be used
@@ -276,6 +276,57 @@ For SEMANTIC queries:
 - [ ] NO variables bound outside SERVICE used inside SERVICE
 - [ ] Linking to LiITA (?word ontolex:canonicalForm ?lemma) MUST be OUTSIDE SERVICE
 - [ ] When using shared URI linking, NO additional FILTER needed for matching
+
+---
+
+## CANONICAL VARIABLE NAMING (MANDATORY)
+
+Use these exact variable names for consistency and evaluation:
+
+### Lexical Resources (URIs):
+| Variable | Description |
+|----------|-------------|
+| `?italianLemma` | Italian lemma resource (lila:Lemma) |
+| `?italianLexEntry` | Italian lexical entry |
+| `?sicilianLemma` | Sicilian lemma resource |
+| `?sicilianLexEntry` | Sicilian lexical entry |
+| `?parmigianoLemma` | Parmigiano lemma resource |
+| `?parmigianoLexEntry` | Parmigiano lexical entry |
+| `?emotionEntry` | Lexical entry with emotion annotation |
+| `?polarityEntry` | Lexical entry with polarity annotation |
+| `?translationEntry` | Lexical entry used for translation |
+
+### Written Representations (Literals):
+| Variable | Description |
+|----------|-------------|
+| `?italianWord` | Italian written form (ontolex:writtenRep) |
+| `?sicilianWord` | Sicilian written form |
+| `?parmigianoWord` | Parmigiano written form |
+| `?dialectWord` | Generic dialect written form |
+| `?writtenRep` | Generic written representation (in SERVICE) |
+
+### Semantic Properties:
+| Variable | Description |
+|----------|-------------|
+| `?definition` | Sense definition (skos:definition) |
+| `?emotionLabel` | Emotion label (rdfs:label on emotion) |
+| `?polarityValue` | Polarity score (marl:hasPolarityValue) |
+| `?sense` | Lexical sense resource |
+| `?pos` | Part of speech |
+| `?count` | For COUNT() results |
+
+### SELECT Clause Variable Order:
+1. Italian word/lemma first
+2. Linguistic properties (pos, gender)
+3. Semantic (definition, sense)
+4. Emotion/sentiment
+5. Translations (sicilian, parmigiano)
+6. Counts last
+
+**Example canonical SELECT clause:**
+```sparql
+SELECT ?italianWord ?pos ?definition ?emotionLabel ?sicilianWord ?parmigianoWord ?count
+```
 
 ---
 

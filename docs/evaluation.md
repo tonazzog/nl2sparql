@@ -12,17 +12,24 @@ The test dataset (`nl2sparql/data/test_dataset.json`) contains structured test c
 {
   "metadata": {
     "description": "...",
-    "version": "1.0",
+    "version": "2.0",
+    "total_examples": 100,
     "patterns_covered": ["EMOTION_LEXICON", "TRANSLATION", ...]
   },
   "test_cases": [
     {
-      "id": "T001",
-      "category": "single_pattern",
-      "patterns": ["EMOTION_LEXICON"],
-      "nl_it": "Quali lemmi esprimono tristezza?",
-      "nl_en": "Which lemmas express sadness?",
-      "description": "Basic emotion query",
+      "id": 2001,
+      "category": "complex",
+      "patterns": ["EMOTION_LEXICON", "TRANSLATION"],
+      "nl_it": "Quali lemmi esprimono tristezza con traduzioni siciliane?",
+      "nl_en": "Which lemmas express sadness with Sicilian translations?",
+      "sparql": "PREFIX ...\nSELECT ...",
+      "answer_variables": {
+        "primary": ["italianWord"],
+        "secondary": [],
+        "aggregates": [],
+        "numeric": []
+      },
       "expected_components": ["GRAPH <http://w3id.org/elita>", "elita:HasEmotion"]
     }
   ]
@@ -31,12 +38,14 @@ The test dataset (`nl2sparql/data/test_dataset.json`) contains structured test c
 
 ### Test Categories
 
+The 100 test cases (all in English) are grouped by semantic complexity:
+
 | Category | Description | Count |
 |----------|-------------|-------|
-| `single_pattern` | Tests one pattern in isolation | 16 |
-| `combination_2` | Tests two patterns together | 12 |
-| `combination_3` | Tests three patterns together | 4 |
-| `complex` | Complex multi-pattern queries | 3 |
+| `complex` | Multi-pattern queries combining 2–4 patterns | 56 |
+| `semantic_combined` | Semantic relation + SERVICE federated queries | 29 |
+| `emotion` | Emotion annotation queries (ELITA) | 9 |
+| `translation` | Dialect translation queries (Sicilian/Parmigiano) | 6 |
 
 ### Patterns Covered
 
@@ -59,22 +68,29 @@ The test dataset (`nl2sparql/data/test_dataset.json`) contains structured test c
 
 ### Primary Metrics
 
-1. **Syntax Validity Rate**
+1. **F1 Score on Answers** *(primary metric)*
+   - Executes both gold and predicted SPARQL against the LiITA endpoint and compares result sets
+   - Precision = fraction of predicted answers that are correct; Recall = fraction of gold answers retrieved
+   - F1 = harmonic mean of precision and recall
+   - This is the most meaningful metric: two structurally different queries can be semantically equivalent
+   - See [docs/f1_evaluator.md](f1_evaluator.md) for full details
+
+2. **Syntax Validity Rate**
    - Percentage of generated queries that parse correctly
    - Measured using rdflib SPARQL parser
    - Formula: `syntax_valid / total_tests`
 
-2. **Endpoint Execution Success Rate**
+3. **Endpoint Execution Success Rate**
    - Percentage of queries that execute without errors on the LiITA endpoint
    - Does not require results, just successful execution
    - Formula: `endpoint_valid / total_tests`
 
-3. **Component Matching Score**
+4. **Component Matching Score**
    - Percentage of expected SPARQL components found in generated query
    - Checks for presence of key patterns (graph URIs, properties, etc.)
    - Formula: `matched_components / expected_components`
 
-4. **Pattern Detection Accuracy**
+5. **Pattern Detection Accuracy**
    - How well the system identifies the required query patterns
    - Checks if expected patterns are subset of detected patterns
    - Formula: `correct_detections / total_tests`
@@ -98,7 +114,7 @@ nl2sparql evaluate
 nl2sparql evaluate --agent
 
 # With specific LLM provider
-nl2sparql evaluate -p anthropic -m claude-sonnet-4-20250514
+nl2sparql evaluate -p anthropic -m claude-sonnet-4-6
 
 # Agent evaluation with specific provider
 nl2sparql evaluate --agent -p openai -m gpt-4.1
@@ -107,8 +123,8 @@ nl2sparql evaluate --agent -p openai -m gpt-4.1
 nl2sparql evaluate -l en
 
 # Filter by category
-nl2sparql evaluate -c single_pattern
-nl2sparql evaluate -c single_pattern -c combination_2
+nl2sparql evaluate -c complex
+nl2sparql evaluate -c complex -c semantic_combined
 
 # Filter by pattern
 nl2sparql evaluate --pattern EMOTION_LEXICON
@@ -148,7 +164,7 @@ print_report(report)
 # Filter by category
 report = evaluate_dataset(
     translator,
-    categories=["single_pattern", "combination_2"],
+    categories=["complex", "semantic_combined"],
 )
 
 # Filter by pattern
@@ -232,7 +248,7 @@ nl2sparql batch-evaluate -p all_defaults
 nl2sparql batch-evaluate -p openai -o ./reports -c comparison.json
 
 # Custom model selection
-nl2sparql batch-evaluate --provider openai --provider anthropic --model gpt-4.1 --model claude-sonnet-4-20250514
+nl2sparql batch-evaluate --provider openai --provider anthropic --model gpt-4.1 --model claude-sonnet-4-6
 
 # Skip endpoint validation for faster results
 nl2sparql batch-evaluate -p quick --no-endpoint
@@ -242,9 +258,9 @@ nl2sparql batch-evaluate -p quick --no-endpoint
 
 | Preset | Models Included | Use Case |
 |--------|-----------------|----------|
-| `quick` | GPT-4.1-mini, Claude 3.5 Haiku | Fast initial comparison |
+| `quick` | GPT-4.1-mini, Claude Haiku 4.5 | Fast initial comparison |
 | `openai` | GPT-4.1, GPT-4.1-mini, GPT-4.1-nano | Compare OpenAI tiers |
-| `anthropic` | Claude Sonnet 4, Claude 3.5 Haiku | Compare Anthropic tiers |
+| `anthropic` | Claude Sonnet 4.6, Claude Haiku 4.5 | Compare Anthropic tiers |
 | `mistral` | Mistral Large, Mistral Small | Compare Mistral tiers |
 | `all_defaults` | Default from each provider | Cross-provider comparison |
 
@@ -271,15 +287,14 @@ results = run_batch_evaluation(
 configs = [
     ModelConfig("openai", "gpt-4.1", "GPT-4.1"),
     ModelConfig("openai", "gpt-4.1-mini", "GPT-4.1-mini"),
-    ModelConfig("anthropic", "claude-sonnet-4-20250514", "Claude Sonnet 4"),
-    ModelConfig("anthropic", "claude-3-5-haiku-20241022", "Claude 3.5 Haiku"),
+    ModelConfig("anthropic", "claude-sonnet-4-6", "Claude Sonnet 4.6"),
+    ModelConfig("anthropic", "claude-haiku-4-5-20251001", "Claude Haiku 4.5"),
 ]
 
 results = run_batch_evaluation(
     configs=configs,
     language="it",
     validate_endpoint=True,
-    output_dir="./reports",
     verbose=True,
 )
 
@@ -305,66 +320,75 @@ MODEL COMPARISON REPORT
 Models evaluated: 4
 Timestamp: 2025-01-15T10:30:00
 
-----------------------------------------------------------------------
-Model                          Syntax       Endpoint     Component    Time
-----------------------------------------------------------------------
-GPT-4.1                        91.4%        80.0%        85.7%        2.34s
-GPT-4.1-mini                   88.6%        74.3%        82.1%        1.12s
-Claude Sonnet 4                94.3%        85.7%        89.2%        2.87s
-Claude 3.5 Haiku               85.7%        71.4%        78.5%        0.95s
-----------------------------------------------------------------------
+--------------------------------------------------------------------------------
+Model                          Avg F1     Syntax     Endpoint   Component  Time
+--------------------------------------------------------------------------------
+GPT-4.1                        0.7012     91.4%      80.0%      85.7%      2.34s
+GPT-4.1-mini                   0.6543     88.6%      74.3%      82.1%      1.12s
+Claude Sonnet 4.6              0.7224     94.3%      85.7%      89.2%      2.87s
+Claude Haiku 4.5               0.6201     85.7%      71.4%      78.5%      0.95s
+--------------------------------------------------------------------------------
 
 Rankings:
 
+  By Avg F1 Score (primary metric):
+    1. Claude Sonnet 4.6: 0.7224
+    2. GPT-4.1: 0.7012
+    3. GPT-4.1-mini: 0.6543
+    4. Claude Haiku 4.5: 0.6201
+
   By Syntax Validity:
-    1. Claude Sonnet 4: 94.3%
+    1. Claude Sonnet 4.6: 94.3%
     2. GPT-4.1: 91.4%
     3. GPT-4.1-mini: 88.6%
-    4. Claude 3.5 Haiku: 85.7%
+    4. Claude Haiku 4.5: 85.7%
 
   By Endpoint Success:
-    1. Claude Sonnet 4: 85.7%
+    1. Claude Sonnet 4.6: 85.7%
     2. GPT-4.1: 80.0%
     ...
 
   By Generation Speed (fastest):
-    1. Claude 3.5 Haiku: 0.95s
-    2. GPT-4o-mini: 1.12s
+    1. Claude Haiku 4.5: 0.95s
+    2. GPT-4.1-mini: 1.12s
     ...
 ```
 
 ### Output Files
 
-When using `--output-dir` (`-o`), individual reports are saved for each model:
+Individual reports are always saved to `reports/` by default (one per model):
 
 ```
 reports/
 ├── report_GPT-4.1.json
 ├── report_GPT-4.1-mini.json
-├── report_Claude_Sonnet_4.json
-└── report_Claude_3.5_Haiku.json
+├── report_Claude_Sonnet_4-6.json
+└── report_Claude_Haiku_4-5.json
 ```
 
 Each report includes the full evaluation results with generated SPARQL queries, which can be manually tested on the LiITA endpoint.
 
-When using `--comparison` (`-c`), a summary JSON is saved with:
+When using `--comparison` (`-c`), a summary JSON is also saved with:
 
 ```json
 {
-  "timestamp": "2025-01-15T10:30:00",
+  "timestamp": "2026-01-15T10:30:00",
   "models_evaluated": 4,
   "models": [
     {
-      "name": "GPT-4.1",
-      "provider": "openai",
-      "syntax_valid_rate": 0.914,
-      "endpoint_valid_rate": 0.800,
-      "avg_component_score": 0.857,
-      "avg_generation_time": 2.34,
+      "name": "Claude Sonnet 4.6",
+      "provider": "anthropic",
+      "syntax_valid_rate": 0.943,
+      "endpoint_valid_rate": 0.857,
+      "avg_component_score": 0.892,
+      "avg_generation_time": 2.87,
+      "avg_f1_score": 0.7224,
+      "f1_evaluated_count": 100,
       "by_category": { ... }
     }
   ],
   "comparison": {
+    "by_f1_score": [...],
     "by_syntax_valid": [...],
     "by_endpoint_valid": [...],
     "by_component_score": [...],
@@ -372,6 +396,26 @@ When using `--comparison` (`-c`), a summary JSON is saved with:
   }
 }
 ```
+
+---
+
+## F1 Score Evaluation
+
+For end-to-end answer accuracy, use `scripts/run_f1_evaluation.py`. This executes both the gold and predicted SPARQL queries against the LiITA endpoint and computes precision, recall, and F1 on the result sets.
+
+```bash
+# Run F1 evaluation with Anthropic, English questions, LIMIT stripping
+python scripts/run_f1_evaluation.py \
+    --provider anthropic \
+    --model claude-sonnet-4-6 \
+    --language en \
+    --strip-limit
+
+```
+
+The F1 report is saved to `reports/f1_report_<provider>_<model>.json` and includes per-test-case results, breakdowns by category and pattern, and score distributions.
+
+See [docs/f1_evaluator.md](f1_evaluator.md) for the full API reference and explanation of the metric.
 
 ---
 
@@ -385,26 +429,27 @@ NL2SPARQL EVALUATION REPORT
 ============================================================
 
 Overall Results:
-  Total tests:           35
-  Successful generations: 35 (100.0%)
-  Syntax valid:          32 (91.4%)
-  Endpoint valid:        28 (80.0%)
+  Total tests:           100
+  Successful generations: 100 (100.0%)
+  Syntax valid:          96 (96.0%)
+  Endpoint valid:        89 (89.0%)
 
 Aggregate Metrics:
   Avg generation time:   2.34s
   Avg component score:   85.7%
-  Pattern detection acc: 94.3%
+  Pattern detection acc: 94.0%
+  Avg F1 score:          0.7224 (n=100)
 
 Results by Category:
-  single_pattern: 15/16 (93.8%)
-  combination_2: 11/12 (91.7%)
-  combination_3: 3/4 (75.0%)
-  complex: 3/3 (100.0%)
+  complex:           50/56 (89.3%)
+  semantic_combined: 26/29 (89.7%)
+  emotion:           9/9  (100.0%)
+  translation:       6/6  (100.0%)
 
 Results by Pattern:
-  EMOTION_LEXICON: 8/8 (100.0%), component score: 92.5%
-  TRANSLATION: 6/7 (85.7%), component score: 81.3%
-  SEMANTIC_RELATION: 7/8 (87.5%), component score: 78.9%
+  EMOTION_LEXICON: 100.0%, component score: 92.5%
+  TRANSLATION: 100.0%, component score: 88.3%
+  SEMANTIC_RELATION: 85.7%, component score: 78.9%
   ...
 ```
 
@@ -428,22 +473,31 @@ To add new test cases, edit `nl2sparql/data/test_dataset.json`:
 
 ```json
 {
-  "id": "T036",
-  "category": "combination_2",
+  "id": 2200,
+  "category": "complex",
   "patterns": ["EMOTION_LEXICON", "MORPHO_REGEX"],
   "nl_it": "Trova parole che esprimono paura e iniziano con 't'",
   "nl_en": "Find words expressing fear that start with 't'",
+  "sparql": "PREFIX ...\nSELECT ?italianWord WHERE { ... }",
+  "answer_variables": {
+    "primary": ["italianWord"],
+    "secondary": [],
+    "aggregates": [],
+    "numeric": []
+  },
   "description": "Emotion + prefix filter",
   "expected_components": ["elita:HasEmotion", "REGEX", "^t", "paura"]
 }
 ```
 
 Guidelines:
-- Use unique IDs (T001, T002, ...)
-- Include both Italian and English versions
+- Use unique numeric IDs (current max is ~2137; use 2200+ for new cases)
+- Include both Italian and English NL questions
+- Provide the gold SPARQL query and classify the answer variables
 - List all relevant patterns
 - Include key SPARQL components to check
 - Add description for clarity
+- Validate the gold query against the LiITA endpoint before adding
 
 ## Comparison with Benchmarks
 
@@ -461,7 +515,6 @@ Our component matching score is not directly comparable to execution accuracy (w
 
 Potential enhancements to the evaluation framework:
 
-1. **Execution accuracy**: Compare result sets with ground truth queries
-2. **Result F1**: Precision/recall on returned bindings
-3. **Cost tracking**: Token usage per query for LLM cost analysis
-4. ~~**Cross-model comparison**: Automated comparison across providers~~ (Implemented in v0.2.0)
+1. **Cost tracking**: Token usage per query for LLM cost analysis
+2. **Finer failure categorisation**: Automated tagging of failure types (wrong graph, wrong property, direction error, etc.)
+3. **Incremental evaluation**: Skip re-running test cases that haven't changed when adding new ones

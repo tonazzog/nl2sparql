@@ -47,6 +47,7 @@ class NL2SPARQL:
         fix_errors: bool = True,
         max_retries: int = 3,
         endpoint: str = LIITA_ENDPOINT,
+        cache_system_prompt: bool = False,
     ):
         """
         Initialize the NL2SPARQL translator.
@@ -62,9 +63,14 @@ class NL2SPARQL:
             fix_errors: Whether to attempt to fix invalid queries
             max_retries: Maximum fix attempts
             endpoint: SPARQL endpoint for validation
+            cache_system_prompt: Enable Anthropic prompt caching on the system
+                prompt (Anthropic provider only, ignored otherwise).
         """
         # Initialize LLM client
-        self.client = get_client(provider, model, api_key)
+        client_kwargs = {}
+        if cache_system_prompt:
+            client_kwargs["cache_system_prompt"] = True
+        self.client = get_client(provider, model, api_key, **client_kwargs)
 
         # Initialize retriever
         self.retriever = HybridRetriever(

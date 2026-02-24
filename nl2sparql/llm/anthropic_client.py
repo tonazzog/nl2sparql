@@ -10,7 +10,24 @@ from .base import LLMClient
 class AnthropicClient(LLMClient):
     """Anthropic Claude API client."""
 
-    def __init__(self, model: str, api_key: Optional[str] = None, **kwargs):
+    def __init__(
+        self,
+        model: str,
+        api_key: Optional[str] = None,
+        cache_system_prompt: bool = False,
+        **kwargs,
+    ):
+        """
+        Args:
+            model: Claude model identifier.
+            api_key: Anthropic API key (falls back to ANTHROPIC_API_KEY env var).
+            cache_system_prompt: When True, every call automatically marks the
+                system prompt with ``cache_control`` so Anthropic caches its KV
+                state for 5 minutes.  Subsequent calls with an identical system
+                prompt pay only 10% of the normal input token price for that
+                portion.  Requires ≥ 1 024 tokens (Sonnet) / ≥ 4 096 tokens
+                (Haiku 4.5) to have any effect.
+        """
         super().__init__(model, api_key, **kwargs)
 
         if self.api_key is None:
@@ -30,14 +47,29 @@ class AnthropicClient(LLMClient):
             )
 
         self._client = anthropic.Anthropic(api_key=self.api_key)
+        self._cache_system_prompt = cache_system_prompt
 
     def complete(
         self,
         messages: list[dict],
         temperature: float = 0.0,
         max_tokens: int = 2048,
+        cache_system_prompt: bool = False,
         **kwargs,
     ) -> str:
+        """Generate a completion.
+
+        Args:
+            messages: Conversation messages (system role handled separately).
+            temperature: Sampling temperature.
+            max_tokens: Maximum output tokens.
+            cache_system_prompt: If True, mark the system prompt with
+                ``cache_control`` so Anthropic caches its KV state for 5 minutes.
+                Subsequent calls with an identical system prompt pay only 10% of
+                the normal input token price for the cached portion.
+                Requires ≥ 1 024 tokens in the system prompt (Sonnet) or
+                ≥ 4 096 tokens (Haiku 4.5) to take effect.
+        """
         # Anthropic handles system messages separately
         system_content = ""
         filtered_messages = []
@@ -48,10 +80,22 @@ class AnthropicClient(LLMClient):
             else:
                 filtered_messages.append(msg)
 
+        # Build system parameter — plain string or cached content block list
+        if system_content and (cache_system_prompt or self._cache_system_prompt):
+            system_param = [
+                {
+                    "type": "text",
+                    "text": system_content,
+                    "cache_control": {"type": "ephemeral"},
+                }
+            ]
+        else:
+            system_param = system_content if system_content else None
+
         response = self._client.messages.create(
             model=self.model,
             max_tokens=max_tokens,
-            system=system_content if system_content else None,
+            system=system_param,
             messages=filtered_messages,
             temperature=temperature,
             **kwargs,

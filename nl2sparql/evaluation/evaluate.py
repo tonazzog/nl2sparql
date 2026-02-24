@@ -107,6 +107,12 @@ class TestResult:
     detected_patterns: list[str] = field(default_factory=list)
     pattern_detection_correct: bool = False
 
+    # F1 Score on Answers
+    f1_score: Optional[float] = None
+    f1_precision: Optional[float] = None
+    f1_recall: Optional[float] = None
+    aggregate_score: Optional[float] = None
+
 
 @dataclass
 class EvaluationReport:
@@ -127,6 +133,10 @@ class EvaluationReport:
     avg_generation_time: float = 0.0
     avg_component_score: float = 0.0
     pattern_detection_accuracy: float = 0.0
+
+    # F1 aggregate metrics
+    avg_f1_score: Optional[float] = None
+    f1_evaluated_count: int = 0
 
     # Individual results
     test_results: list[TestResult] = field(default_factory=list)
@@ -176,6 +186,7 @@ def evaluate_single(
     translator,
     language: str = "it",
     validate_endpoint: bool = True,
+    f1_evaluator=None,
 ) -> TestResult:
     """
     Evaluate a single test case.
@@ -236,6 +247,27 @@ def evaluate_single(
     detected_set = set(result.detected_patterns)
     result.pattern_detection_correct = expected_set.issubset(detected_set)
 
+    # F1 Score on Answers
+    if (
+        f1_evaluator is not None
+        and result.generated_sparql
+        and test_case.get("sparql")
+        and test_case.get("answer_variables")
+    ):
+        try:
+            f1_result = f1_evaluator.evaluate_single(
+                gold_sparql=test_case["sparql"],
+                predicted_sparql=result.generated_sparql,
+                answer_variables=test_case["answer_variables"],
+                test_id=test_case.get("id", 0),
+            )
+            result.f1_score = f1_result.f1
+            result.f1_precision = f1_result.precision
+            result.f1_recall = f1_result.recall
+            result.aggregate_score = f1_result.aggregate_score
+        except Exception:
+            pass  # F1 evaluation is best-effort
+
     return result
 
 
@@ -246,6 +278,7 @@ def evaluate_dataset(
     validate_endpoint: bool = True,
     categories: Optional[list[str]] = None,
     patterns: Optional[list[str]] = None,
+    f1_evaluator=None,
 ) -> EvaluationReport:
     """
     Evaluate the translator on the test dataset.
@@ -285,6 +318,7 @@ def evaluate_dataset(
             translator,
             language=language,
             validate_endpoint=validate_endpoint,
+            f1_evaluator=f1_evaluator,
         )
         report.test_results.append(result)
 
@@ -332,6 +366,12 @@ def evaluate_dataset(
         correct = sum(1 for r in report.test_results if r.pattern_detection_correct)
         report.pattern_detection_accuracy = correct / len(report.test_results)
 
+    # Calculate F1 aggregates
+    f1_results = [r for r in report.test_results if r.f1_score is not None]
+    if f1_results:
+        report.f1_evaluated_count = len(f1_results)
+        report.avg_f1_score = sum(r.f1_score for r in f1_results) / len(f1_results)
+
     return report
 
 
@@ -363,6 +403,23 @@ def print_report(report: EvaluationReport) -> None:
         avg_score = sum(stats["component_scores"]) / len(stats["component_scores"]) if stats["component_scores"] else 0
         print(f"  {pattern}: {stats['success']}/{stats['total']} ({success_rate:.1f}%), component score: {avg_score:.2%}")
 
+    # F1 Score on Answers
+    if report.avg_f1_score is not None:
+        print(f"\nF1 Score on Answers:")
+        print(f"  Evaluated:             {report.f1_evaluated_count}")
+        print(f"  Avg F1:                {report.avg_f1_score:.4f}")
+
+        # Per-result F1 summary
+        f1_results = [r for r in report.test_results if r.f1_score is not None]
+        if f1_results:
+            avg_prec = sum(r.f1_precision for r in f1_results) / len(f1_results)
+            avg_rec = sum(r.f1_recall for r in f1_results) / len(f1_results)
+            print(f"  Avg Precision:         {avg_prec:.4f}")
+            print(f"  Avg Recall:            {avg_rec:.4f}")
+
+            perfect = sum(1 for r in f1_results if r.f1_score == 1.0)
+            print(f"  Perfect F1 (1.0):      {perfect}/{len(f1_results)}")
+
     # Print failures
     failures = [r for r in report.test_results if not r.syntax_valid]
     if failures:
@@ -386,6 +443,8 @@ def save_report(report: EvaluationReport, path: str) -> None:
             "avg_generation_time": report.avg_generation_time,
             "avg_component_score": report.avg_component_score,
             "pattern_detection_accuracy": report.pattern_detection_accuracy,
+            "avg_f1_score": report.avg_f1_score,
+            "f1_evaluated_count": report.f1_evaluated_count,
         },
         "by_category": report.results_by_category,
         "by_pattern": {
@@ -414,6 +473,10 @@ def save_report(report: EvaluationReport, path: str) -> None:
                 "pattern_detection_correct": r.pattern_detection_correct,
                 "generation_time": r.generation_time,
                 "generation_error": r.generation_error,
+                "f1_score": r.f1_score,
+                "f1_precision": r.f1_precision,
+                "f1_recall": r.f1_recall,
+                "aggregate_score": r.aggregate_score,
             }
             for r in report.test_results
         ]

@@ -36,7 +36,7 @@ Use this when: "Find Parmigiano/Sicilian words that... and show Italian translat
 ```sparql
 # Step 1: Dialect lemma (no GRAPH needed!)
 ?dialectLemma a lila:Lemma ;
-              ontolex:writtenRep ?dialectWr .
+              ontolex:writtenRep ?dialectWord .
 
 # Step 2: Dialect lexical entry
 ?dialectLexEntry ontolex:canonicalForm ?dialectLemma .
@@ -46,21 +46,21 @@ Use this when: "Find Parmigiano/Sicilian words that... and show Italian translat
                  ontolex:canonicalForm ?italianLemma .
 
 # Step 4: Italian word
-?italianLemma ontolex:writtenRep ?italianWr .
+?italianLemma ontolex:writtenRep ?italianWord .
 ```
 
 **Real example - Parmigiano verbs ending with "or" and Italian translation:**
 ```sparql
-SELECT ?lemma ?wr ?liitaLemma ?wrIT
+SELECT ?parmigianoLemma ?parmigianoWord ?italianLemma ?italianWord
 WHERE {
-  ?lemma a lila:Lemma ;
-         ontolex:writtenRep ?wr ;
-         lila:hasPOS lila:verb .
-  ?le ontolex:canonicalForm ?lemma .
-  ?leITA vartrans:translatableAs ?le ;
-         ontolex:canonicalForm ?liitaLemma .
-  ?liitaLemma ontolex:writtenRep ?wrIT .
-  FILTER regex(str(?wr), "or$") .
+  ?parmigianoLemma a lila:Lemma ;
+                   ontolex:writtenRep ?parmigianoWord ;
+                   lila:hasPOS lila:verb .
+  ?parmigianoLexEntry ontolex:canonicalForm ?parmigianoLemma .
+  ?italianLexEntry vartrans:translatableAs ?parmigianoLexEntry ;
+                   ontolex:canonicalForm ?italianLemma .
+  ?italianLemma ontolex:writtenRep ?italianWord .
+  FILTER regex(str(?parmigianoWord), "or$") .
 }
 ```
 
@@ -73,7 +73,7 @@ Use this when: "Find Italian words that... and show Parmigiano/Sicilian translat
 ```sparql
 # Step 1: Italian lemma
 ?italianLemma a lila:Lemma ;
-              ontolex:writtenRep ?italianWr .
+              ontolex:writtenRep ?italianWord .
 
 # Step 2: Italian lexical entry
 ?italianLexEntry ontolex:canonicalForm ?italianLemma .
@@ -83,20 +83,20 @@ Use this when: "Find Italian words that... and show Parmigiano/Sicilian translat
 
 # Step 4: Dialect lemma and word
 ?dialectLexEntry ontolex:canonicalForm ?dialectLemma .
-?dialectLemma ontolex:writtenRep ?dialectWr .
+?dialectLemma ontolex:writtenRep ?dialectWord .
 ```
 
 **Real example - Italian "donna" and Parmigiano translations:**
 ```sparql
-SELECT ?wrsIT ?wrs
+SELECT ?italianWord ?parmigianoWord
 WHERE {
-  ?lemma a lila:Lemma ;
-         ontolex:writtenRep ?wr .
-  ?le ontolex:canonicalForm ?lemma .
-  ?leITA vartrans:translatableAs ?le ;
-         ontolex:canonicalForm ?liitaLemma .
-  ?liitaLemma ontolex:writtenRep ?wrIT .
-  FILTER regex(str(?wrIT), "^donna$")
+  ?italianLemma a lila:Lemma ;
+                ontolex:writtenRep ?italianWord .
+  ?italianLexEntry ontolex:canonicalForm ?italianLemma .
+  ?italianLexEntry vartrans:translatableAs ?parmigianoLexEntry .
+  ?parmigianoLexEntry ontolex:canonicalForm ?parmigianoLemma .
+  ?parmigianoLemma ontolex:writtenRep ?parmigianoWord .
+  FILTER regex(str(?italianWord), "^donna$")
 }
 ```
 
@@ -196,7 +196,7 @@ When querying translations to MULTIPLE dialects, use DIFFERENT Italian lexical e
 
 **WRONG - Same variable for both dialects (returns empty results):**
 ```sparql
-?italianLexEntry ontolex:canonicalForm ?liitaLemma .
+?italianLexEntry ontolex:canonicalForm ?italianLemma .
 ?italianLexEntry vartrans:translatableAs ?sicilianLexEntry .   # Sicilian
 ?italianLexEntry vartrans:translatableAs ?parmigianoLexEntry . # Parmigiano - WRONG!
 ```
@@ -204,14 +204,14 @@ When querying translations to MULTIPLE dialects, use DIFFERENT Italian lexical e
 **CORRECT - Different variables for each dialect:**
 ```sparql
 # Sicilian translation (via one Italian lexical entry)
-?italianSicilianLexEntry ontolex:canonicalForm ?liitaLemma .
+?italianSicilianLexEntry ontolex:canonicalForm ?italianLemma .
 ?italianSicilianLexEntry vartrans:translatableAs ?sicilianLexEntry .
 ?sicilianLexEntry ontolex:canonicalForm ?sicilianLemma .
 ?sicilianLemma dcterms:isPartOf <http://liita.it/data/id/DialettoSiciliano/lemma/LemmaBank> ;
                ontolex:writtenRep ?sicilianWord .
 
 # Parmigiano translation (via DIFFERENT Italian lexical entry!)
-?italianParmigianoLexEntry ontolex:canonicalForm ?liitaLemma .
+?italianParmigianoLexEntry ontolex:canonicalForm ?italianLemma .
 ?italianParmigianoLexEntry vartrans:translatableAs ?parmigianoLexEntry .
 ?parmigianoLexEntry ontolex:canonicalForm ?parmigianoLemma .
 ?parmigianoLemma dcterms:isPartOf <http://liita.it/data/id/DialettoParmigiano/lemma/LemmaBank> ;
@@ -230,21 +230,21 @@ WHERE {
   }
 
   # 2. Link to LiITA lemma
-  ?word ontolex:canonicalForm ?liitaLemma .
+  ?word ontolex:canonicalForm ?italianLemma .
   GRAPH <http://liita.it/data> {
-    ?liitaLemma a lila:Lemma ;
-                lila:hasPOS lila:adjective .
+    ?italianLemma a lila:Lemma ;
+                  lila:hasPOS lila:adjective .
   }
 
   # 3. Sicilian translation (via Italian lexical entry for Sicilian)
-  ?italianSicilianLexEntry ontolex:canonicalForm ?liitaLemma .
+  ?italianSicilianLexEntry ontolex:canonicalForm ?italianLemma .
   ?italianSicilianLexEntry vartrans:translatableAs ?sicilianLexEntry .
   ?sicilianLexEntry ontolex:canonicalForm ?sicilianLemma .
   ?sicilianLemma dcterms:isPartOf <http://liita.it/data/id/DialettoSiciliano/lemma/LemmaBank> ;
                  ontolex:writtenRep ?sicilianWord .
 
   # 4. Parmigiano translation (via DIFFERENT Italian lexical entry!)
-  ?italianParmigianoLexEntry ontolex:canonicalForm ?liitaLemma .
+  ?italianParmigianoLexEntry ontolex:canonicalForm ?italianLemma .
   ?italianParmigianoLexEntry vartrans:translatableAs ?parmigianoLexEntry .
   ?parmigianoLexEntry ontolex:canonicalForm ?parmigianoLemma .
   ?parmigianoLemma dcterms:isPartOf <http://liita.it/data/id/DialettoParmigiano/lemma/LemmaBank> ;
@@ -266,13 +266,13 @@ WHERE {
               ontolex:writtenRep ?italianWord .
 
 # Sentiment on one lexical entry
-?sentimentLexEntry ontolex:canonicalForm ?italianLemma ;
-                   marl:hasPolarity ?polarity ;
-                   marl:hasPolarityValue ?polarityValue .
+?polarityEntry ontolex:canonicalForm ?italianLemma ;
+               marl:hasPolarity ?polarity ;
+               marl:hasPolarityValue ?polarityValue .
 
 # Translation on possibly different lexical entry!
-?translationLexEntry ontolex:canonicalForm ?italianLemma ;
-                     vartrans:translatableAs ?dialectLexEntry .
+?translationEntry ontolex:canonicalForm ?italianLemma ;
+                  vartrans:translatableAs ?dialectLexEntry .
 
 # Dialect lemma
 ?dialectLexEntry ontolex:canonicalForm ?dialectLemma .

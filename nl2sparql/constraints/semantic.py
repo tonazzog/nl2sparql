@@ -55,8 +55,8 @@ The property name indicates what the OBJECT is, not the SUBJECT.
 ```sparql
 SERVICE <https://klab.ilc.cnr.it/graphdb-compl-it/> {
     # Find the target word
-    ?word ontolex:canonicalForm [ ontolex:writtenRep ?wrIta ] .
-    FILTER(STR(?wrIta) = "veicolo")
+    ?word ontolex:canonicalForm [ ontolex:writtenRep ?writtenRep ] .
+    FILTER(STR(?writtenRep) = "veicolo")
 
     # Get its sense
     ?word ontolex:sense ?sense .
@@ -66,7 +66,7 @@ SERVICE <https://klab.ilc.cnr.it/graphdb-compl-it/> {
 
     # Get the hyponym words
     ?hyponymWord ontolex:sense ?hyponymSense ;
-                 ontolex:canonicalForm [ ontolex:writtenRep ?result ] .
+                 ontolex:canonicalForm [ ontolex:writtenRep ?hyponymWrittenRep ] .
 }
 ```
 
@@ -78,8 +78,8 @@ SERVICE <https://klab.ilc.cnr.it/graphdb-compl-it/> {
 ```sparql
 SERVICE <https://klab.ilc.cnr.it/graphdb-compl-it/> {
     # Find the target word
-    ?word ontolex:canonicalForm [ ontolex:writtenRep ?wrIta ] .
-    FILTER(STR(?wrIta) = "cane")
+    ?word ontolex:canonicalForm [ ontolex:writtenRep ?writtenRep ] .
+    FILTER(STR(?writtenRep) = "cane")
 
     # Get its sense
     ?word ontolex:sense ?sense .
@@ -89,7 +89,7 @@ SERVICE <https://klab.ilc.cnr.it/graphdb-compl-it/> {
 
     # Get the hypernym words
     ?hypernymWord ontolex:sense ?hypernymSense ;
-                  ontolex:canonicalForm [ ontolex:writtenRep ?result ] .
+                  ontolex:canonicalForm [ ontolex:writtenRep ?hypernymWrittenRep ] .
 }
 ```
 
@@ -163,9 +163,9 @@ Variables bound in the SERVICE block can be used directly outside to access LiIt
 ```sparql
 SERVICE <https://klab.ilc.cnr.it/graphdb-compl-it/> {
     # Find the target word
-    ?word ontolex:canonicalForm [ ontolex:writtenRep ?lemma ] ;
+    ?word ontolex:canonicalForm [ ontolex:writtenRep ?writtenRep ] ;
           ontolex:sense ?sense .
-    FILTER(STR(?lemma) = "giorno")
+    FILTER(STR(?writtenRep) = "giorno")
 
     # Find meronyms (parts of "giorno" like "mattina", "sera")
     ?senseMeronym lexinfo:partMeronym ?sense .
@@ -175,14 +175,14 @@ SERVICE <https://klab.ilc.cnr.it/graphdb-compl-it/> {
 }
 
 # OUTSIDE SERVICE: Use ?wordMeronym directly to access LiIta!
-?wordMeronym ontolex:canonicalForm ?liitaLemma .
+?wordMeronym ontolex:canonicalForm ?italianLemma .
 
 # Continue with LiIta patterns (e.g., get Parmigiano translation)
-?translationEntry ontolex:canonicalForm ?liitaLemma ;
+?translationEntry ontolex:canonicalForm ?italianLemma ;
                   ^lime:entry <http://liita.it/data/id/LexicalReources/DialettoParmigiano/Lexicon> .
-?translationEntry vartrans:translatableAs ?dialectEntry .
-?dialectEntry ontolex:canonicalForm ?dialectLemma .
-?dialectLemma ontolex:writtenRep ?dialectWord .
+?translationEntry vartrans:translatableAs ?parmigianoLexEntry .
+?parmigianoLexEntry ontolex:canonicalForm ?parmigianoLemma .
+?parmigianoLemma ontolex:writtenRep ?parmigianoWord .
 ```
 
 **KEY INSIGHT**: The `?wordMeronym` URI from CompL-it is the SAME URI used in LiIta, so you can:
@@ -196,14 +196,14 @@ SERVICE <https://klab.ilc.cnr.it/graphdb-compl-it/> {
 # WRONG - linking inside SERVICE
 SERVICE <...> {
     ?word ontolex:sense ?sense .
-    ?word ontolex:canonicalForm ?liitaLemma .  # WRONG: move this outside!
+    ?word ontolex:canonicalForm ?italianLemma .  # WRONG: move this outside!
 }
 
 # CORRECT - linking outside SERVICE
 SERVICE <...> {
     ?word ontolex:sense ?sense .
 }
-?word ontolex:canonicalForm ?liitaLemma .  # CORRECT: outside SERVICE
+?word ontolex:canonicalForm ?italianLemma .  # CORRECT: outside SERVICE
 ```
 
 **CRITICAL**: When using shared URI linking, NO additional FILTER is needed!
@@ -211,16 +211,16 @@ SERVICE <...> {
 ```sparql
 # WRONG - unnecessary filter referencing outside variable
 SERVICE <...> {
-    ?word ontolex:canonicalForm [ ontolex:writtenRep ?wr ] .
-    FILTER(STR(?wr) = ?italianWord)  # WRONG: ?italianWord is outside, and linking is via URI!
+    ?word ontolex:canonicalForm [ ontolex:writtenRep ?writtenRep ] .
+    FILTER(STR(?writtenRep) = ?italianWord)  # WRONG: ?italianWord is outside, and linking is via URI!
 }
-?word ontolex:canonicalForm ?lemma .
+?word ontolex:canonicalForm ?italianLemma .
 
 # CORRECT - linking via URI is sufficient, no filter needed
 SERVICE <...> {
     ?word ontolex:sense ?sense .
 }
-?word ontolex:canonicalForm ?lemma .  # The URI match handles the linking!
+?word ontolex:canonicalForm ?italianLemma .  # The URI match handles the linking!
 ```
 
 **CRITICAL**: Always use FILTER(STR()) for string matching, never direct literals!
@@ -230,8 +230,8 @@ SERVICE <...> {
 ?word ontolex:canonicalForm [ ontolex:writtenRep "sentimento" ] .
 
 # CORRECT - use variable + FILTER with STR()
-?word ontolex:canonicalForm [ ontolex:writtenRep ?wr ] .
-FILTER(STR(?wr) = "sentimento")
+?word ontolex:canonicalForm [ ontolex:writtenRep ?writtenRep ] .
+FILTER(STR(?writtenRep) = "sentimento")
 ```
 
 ---
@@ -271,10 +271,10 @@ SERVICE <https://klab.ilc.cnr.it/graphdb-compl-it/> {
 }
 
 # Then: Use shared URI to access LiITA
-?word ontolex:canonicalForm ?liitaLemma .
+?word ontolex:canonicalForm ?italianLemma .
 GRAPH <http://liita.it/data> {
-    ?liitaLemma ontolex:writtenRep ?italianWord ;
-                lila:hasPOS lila:noun .
+    ?italianLemma ontolex:writtenRep ?italianWord ;
+                  lila:hasPOS lila:noun .
 }
 ```
 

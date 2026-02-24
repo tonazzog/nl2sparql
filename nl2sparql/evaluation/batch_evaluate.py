@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Optional
 
 from .evaluate import evaluate_dataset, save_report, EvaluationReport
+from .f1_evaluator import F1Evaluator
 
 
 @dataclass
@@ -30,8 +31,8 @@ OPENAI_MODELS = [
 ]
 
 ANTHROPIC_MODELS = [
-    ModelConfig("anthropic", "claude-sonnet-4-20250514", "Claude Sonnet 4"),
-    ModelConfig("anthropic", "claude-3-5-haiku-20241022", "Claude 3.5 Haiku"),
+    ModelConfig("anthropic", "claude-sonnet-4-6", "Claude Sonnet 4.6"),
+    ModelConfig("anthropic", "claude-haiku-4-5-20251001", "Claude Haiku 4.5"),
 ]
 
 MISTRAL_MODELS = [
@@ -54,7 +55,7 @@ PRESETS = {
     "all_defaults": ALL_PROVIDERS_DEFAULT,
     "quick": [
         ModelConfig("openai", "gpt-4.1-mini", "GPT-4.1-mini"),
-        ModelConfig("anthropic", "claude-3-5-haiku-20241022", "Claude 3.5 Haiku"),
+        ModelConfig("anthropic", "claude-haiku-4-5-20251001", "Claude Haiku 4.5"),
     ],
 }
 
@@ -77,6 +78,9 @@ def run_batch_evaluation(
     output_dir: Optional[str] = None,
     verbose: bool = True,
     use_agent: bool = False,
+    f1_evaluation: bool = True,
+    strip_limit: bool = True,
+    f1_timeout: int = 60,
 ) -> list[BatchResult]:
     """
     Run evaluation for multiple model configurations.
@@ -90,6 +94,10 @@ def run_batch_evaluation(
         output_dir: Directory to save individual reports (optional)
         verbose: Print progress
         use_agent: If True, use NL2SPARQLAgent instead of NL2SPARQL
+        f1_evaluation: Whether to compute F1 score on answers (default: True)
+        strip_limit: Strip LIMIT/OFFSET from both gold and predicted queries
+            before F1 comparison (default: True, prevents recall deflation)
+        f1_timeout: SPARQL endpoint timeout in seconds for F1 queries
 
     Returns:
         List of BatchResult
@@ -99,9 +107,25 @@ def run_batch_evaluation(
 
     results = []
 
+    # Resolve output directory — default to reports/ next to the package root
     if output_dir:
         output_path = Path(output_dir)
-        output_path.mkdir(parents=True, exist_ok=True)
+    else:
+        output_path = Path(__file__).parent.parent.parent / "reports"
+    output_path.mkdir(parents=True, exist_ok=True)
+
+    # Build a shared F1Evaluator (pre-fetches gold results once, reused per model)
+    f1_evaluator = None
+    if f1_evaluation:
+        f1_evaluator = F1Evaluator(
+            strip_predicted_limit=strip_limit,
+            cache_gold_results=True,
+            timeout=f1_timeout,
+        )
+        if verbose:
+            print("F1 evaluation enabled (LIMIT stripping: {})".format(
+                "on" if strip_limit else "off"
+            ))
 
     for i, config in enumerate(configs, 1):
         mode_str = " (agent)" if use_agent else ""
@@ -126,31 +150,39 @@ def run_batch_evaluation(
                     fix_errors=True,
                 )
 
+            # Reset gold cache between models so each model is evaluated
+            # against freshly fetched (or re-used cached) gold results.
+            if f1_evaluator is not None:
+                f1_evaluator._gold_cache.clear()
+
             report = evaluate_dataset(
                 translator=translator,
                 language=language,
                 validate_endpoint=validate_endpoint,
                 categories=categories,
                 patterns=patterns,
+                f1_evaluator=f1_evaluator,
             )
 
             duration = time.time() - start_time
 
             if verbose:
-                print(f"    Syntax valid: {report.syntax_valid}/{report.total_tests} "
+                print(f"    Syntax valid:        {report.syntax_valid}/{report.total_tests} "
                       f"({100*report.syntax_valid/report.total_tests:.1f}%)")
-                print(f"    Endpoint valid: {report.endpoint_valid}/{report.total_tests} "
+                print(f"    Endpoint valid:      {report.endpoint_valid}/{report.total_tests} "
                       f"({100*report.endpoint_valid/report.total_tests:.1f}%)")
                 print(f"    Avg component score: {report.avg_component_score:.2%}")
+                if report.avg_f1_score is not None:
+                    print(f"    Avg F1 score:        {report.avg_f1_score:.4f} "
+                          f"(n={report.f1_evaluated_count})")
                 print(f"    Duration: {duration:.1f}s")
 
             # Save individual report
-            if output_dir:
-                safe_name = config.name.replace("/", "_").replace(" ", "_")
-                report_path = output_path / f"report_{safe_name}.json"
-                save_report(report, str(report_path))
-                if verbose:
-                    print(f"    Saved: {report_path}")
+            safe_name = config.name.replace("/", "_").replace(" ", "_").replace(".", "-")
+            report_path = output_path / f"report_{safe_name}.json"
+            save_report(report, str(report_path))
+            if verbose:
+                print(f"    Saved: {report_path}")
 
             results.append(BatchResult(
                 model_config=config,
@@ -193,6 +225,7 @@ def create_comparison_report(
         "models_evaluated": len(results),
         "models": [],
         "comparison": {
+            "by_f1_score": [],
             "by_syntax_valid": [],
             "by_endpoint_valid": [],
             "by_component_score": [],
@@ -224,6 +257,8 @@ def create_comparison_report(
             model_data["avg_component_score"] = r.avg_component_score
             model_data["avg_generation_time"] = r.avg_generation_time
             model_data["pattern_detection_accuracy"] = r.pattern_detection_accuracy
+            model_data["avg_f1_score"] = r.avg_f1_score
+            model_data["f1_evaluated_count"] = r.f1_evaluated_count
 
             # Per-category breakdown
             model_data["by_category"] = {
@@ -239,6 +274,13 @@ def create_comparison_report(
 
     # Sort for rankings (only successful evaluations)
     successful = [m for m in comparison["models"] if m.get("syntax_valid_rate") is not None]
+
+    comparison["comparison"]["by_f1_score"] = sorted(
+        [{"name": m["name"], "score": m["avg_f1_score"]}
+         for m in successful if m.get("avg_f1_score") is not None],
+        key=lambda x: x["score"],
+        reverse=True,
+    )
 
     comparison["comparison"]["by_syntax_valid"] = sorted(
         [{"name": m["name"], "rate": m["syntax_valid_rate"]} for m in successful],
@@ -280,24 +322,30 @@ def print_comparison(comparison: dict) -> None:
     print(f"Timestamp: {comparison['timestamp']}")
 
     # Summary table
-    print("\n" + "-" * 70)
-    print(f"{'Model':<30} {'Syntax':<12} {'Endpoint':<12} {'Component':<12} {'Time':<10}")
-    print("-" * 70)
+    print("\n" + "-" * 80)
+    print(f"{'Model':<30} {'Avg F1':<10} {'Syntax':<10} {'Endpoint':<10} {'Component':<12} {'Time':<8}")
+    print("-" * 80)
 
     for m in comparison["models"]:
         if m.get("error"):
-            print(f"{m['name']:<30} {'ERROR':<12} {'-':<12} {'-':<12} {'-':<10}")
+            print(f"{m['name']:<30} {'ERROR':<10} {'-':<10} {'-':<10} {'-':<12} {'-':<8}")
         else:
+            f1_str = f"{m['avg_f1_score']:.4f}" if m.get("avg_f1_score") is not None else "-"
             syntax = f"{m['syntax_valid_rate']*100:.1f}%"
             endpoint = f"{m['endpoint_valid_rate']*100:.1f}%"
             component = f"{m['avg_component_score']*100:.1f}%"
             time_str = f"{m['avg_generation_time']:.2f}s"
-            print(f"{m['name']:<30} {syntax:<12} {endpoint:<12} {component:<12} {time_str:<10}")
+            print(f"{m['name']:<30} {f1_str:<10} {syntax:<10} {endpoint:<10} {component:<12} {time_str:<8}")
 
-    print("-" * 70)
+    print("-" * 80)
 
     # Rankings
     print("\nRankings:")
+
+    if comparison["comparison"]["by_f1_score"]:
+        print("\n  By Avg F1 Score (primary metric):")
+        for i, item in enumerate(comparison["comparison"]["by_f1_score"][:5], 1):
+            print(f"    {i}. {item['name']}: {item['score']:.4f}")
 
     print("\n  By Syntax Validity:")
     for i, item in enumerate(comparison["comparison"]["by_syntax_valid"][:5], 1):
@@ -348,8 +396,19 @@ def batch_evaluate_cli():
         help="Skip endpoint validation"
     )
     parser.add_argument(
+        "--no-f1",
+        action="store_true",
+        help="Skip F1 score on answers evaluation"
+    )
+    parser.add_argument(
+        "--no-strip-limit",
+        action="store_true",
+        help="Do not strip LIMIT/OFFSET from queries before F1 comparison"
+    )
+    parser.add_argument(
         "--output-dir", "-o",
-        help="Directory to save reports"
+        default=None,
+        help="Directory to save reports (default: reports/)"
     )
     parser.add_argument(
         "--comparison", "-c",
@@ -377,6 +436,8 @@ def batch_evaluate_cli():
         language=args.language,
         validate_endpoint=not args.no_endpoint,
         output_dir=args.output_dir,
+        f1_evaluation=not args.no_f1,
+        strip_limit=not args.no_strip_limit,
     )
 
     # Create and print comparison

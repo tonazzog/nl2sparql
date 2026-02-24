@@ -8,6 +8,7 @@ from ..constraints.prompt_builder import (
     build_fix_prompt,
     build_adaptation_prompt,
 )
+from .normalizer import normalize_variables
 
 if TYPE_CHECKING:
     from .. import QueryExample
@@ -98,7 +99,8 @@ def adapt_query(
         max_tokens=max_tokens,
     )
 
-    return extract_sparql_from_response(response)
+    sparql = extract_sparql_from_response(response)
+    return normalize_variables(sparql)
 
 
 def synthesize_query(
@@ -142,7 +144,8 @@ def synthesize_query(
         max_tokens=max_tokens,
     )
 
-    return extract_sparql_from_response(response)
+    sparql = extract_sparql_from_response(response)
+    return normalize_variables(sparql)
 
 
 def fix_query(
@@ -180,4 +183,5 @@ def fix_query(
         max_tokens=max_tokens,
     )
 
-    return extract_sparql_from_response(response)
+    fixed_sparql = extract_sparql_from_response(response)
+    return normalize_variables(fixed_sparql)

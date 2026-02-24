@@ -18,6 +18,7 @@ NL2SPARQL translates natural language questions (in Italian or English) into SPA
 - **Agentic Mode**: LangGraph-powered agent with self-correction and ontology exploration
 - **MCP Server**: Model Context Protocol server for integration with Claude Desktop and other MCP clients
 - **Web UI**: Gradio-based web interface for interactive query generation
+- **F1 Evaluation**: Answer-set comparison by executing queries on the LiITA endpoint (precision, recall, F1)
 
 ## Installation
 
@@ -321,7 +322,7 @@ from nl2sparql.mcp.server import MCPConfig
 # Configure and run the server
 config = MCPConfig(
     provider="anthropic",
-    model="claude-sonnet-4-20250514",
+    model="claude-sonnet-4-6",
 )
 server = NL2SPARQLMCPServer(config)
 asyncio.run(server.run())
@@ -472,70 +473,71 @@ The UI streams tool calls as they happen:
 ```
 nl2sparql/
 ├── scripts/
-│   ├── gradio_app.py          # Simple Gradio web UI
-│   ├── gradio_app_agent.py    # Agent-based Gradio UI (dual LLM)
-│   └── test_mcp_tools.py      # Direct tool testing
+│   ├── gradio_app.py              # Simple Gradio web UI
+│   ├── gradio_app_agent.py        # Agent-based Gradio UI (dual LLM)
+│   ├── run_f1_evaluation.py       # F1 score evaluation script
+│   ├── generate_variations.py     # Generate synthetic test cases via LLM
+│   └── test_mcp_tools.py          # Direct tool testing
 ├── notebooks/
-│   └── quickstart.ipynb       # Interactive tutorial
-├── __init__.py                # Public API
-├── __main__.py                # Entry point for python -m nl2sparql
-├── cli.py                     # Command-line interface
-├── config.py                  # Configuration management
-├── agent/                     # Agentic LangGraph workflow
-│   ├── __init__.py            # Public API (NL2SPARQLAgent)
-│   ├── state.py               # State definition for workflow
-│   ├── nodes.py               # Node implementations (analyze, generate, verify, etc.)
-│   └── graph.py               # LangGraph workflow definition
-├── mcp/                       # MCP (Model Context Protocol) server
-│   ├── __init__.py            # Public API (NL2SPARQLMCPServer)
-│   ├── __main__.py            # Entry point for python -m nl2sparql.mcp
-│   ├── server.py              # MCP server implementation
-│   ├── tools.py               # Tool handler implementations
-│   └── resources.py           # Resource providers
-├── constraints/               # Domain-specific prompts and validation
-│   ├── __init__.py            # Public API for constraints
-│   ├── base.py                # Core SPARQL patterns and system prompt
-│   ├── emotion.py             # ELITA emotion constraints
-│   ├── translation.py         # Dialect translation constraints
-│   ├── semantic.py            # CompL-it semantic constraints
-│   ├── lexical_relation.py    # Synonym/antonym constraints
-│   ├── multi_entry.py         # Multi-entry pattern validation
-│   ├── compositional.py       # Complex query reasoning
-│   └── prompt_builder.py      # Dynamic prompt construction
-├── retrieval/                 # Hybrid retrieval system
-│   ├── __init__.py            # Public API for retrieval
-│   ├── hybrid_retriever.py    # Main retriever combining all methods
-│   ├── ontology_retriever.py  # Semantic search over ontology definitions
-│   ├── embeddings.py          # Sentence transformers + FAISS
-│   ├── bm25.py                # BM25 with pattern boosting
-│   └── patterns.py            # Query pattern inference (keyword + semantic)
-├── generation/                # Query synthesis
-│   ├── __init__.py            # Public API for generation
-│   ├── synthesizer.py         # Main NL2SPARQL class
-│   └── adapters.py            # Query adaptation utilities
-├── llm/                       # LLM provider abstraction
-│   ├── __init__.py            # Public API for LLM clients
-│   ├── base.py                # Abstract client interface
-│   ├── openai_client.py       # OpenAI implementation
-│   ├── anthropic_client.py    # Anthropic implementation
-│   ├── mistral_client.py      # Mistral implementation
-│   ├── gemini_client.py       # Google Gemini implementation
-│   └── ollama_client.py       # Ollama implementation
-├── validation/                # Query validation
-│   ├── __init__.py            # Public API for validation
-│   ├── syntax.py              # rdflib syntax validation
-│   ├── endpoint.py            # SPARQL endpoint validation
-│   └── semantic.py            # Constraint-based validation
-├── evaluation/                # Evaluation framework
-│   ├── __init__.py            # Public API for evaluation
-│   ├── evaluate.py            # Test runner and metrics
-│   └── batch_evaluate.py      # Multi-model comparison
-├── synthetic/                 # Synthetic data generation
-│   ├── __init__.py            # Public API for synthetic generation
-│   └── generator.py           # Training data generator
+│   └── quickstart.ipynb           # Interactive tutorial
+├── __init__.py                    # Public API
+├── __main__.py                    # Entry point for python -m nl2sparql
+├── cli.py                         # Command-line interface
+├── config.py                      # Configuration management
+├── agent/                         # Agentic LangGraph workflow
+│   ├── __init__.py                # Public API (NL2SPARQLAgent)
+│   ├── state.py                   # State definition for workflow
+│   ├── nodes.py                   # Node implementations (analyze, generate, verify, etc.)
+│   └── graph.py                   # LangGraph workflow definition
+├── mcp/                           # MCP (Model Context Protocol) server
+│   ├── __init__.py                # Public API (NL2SPARQLMCPServer)
+│   ├── __main__.py                # Entry point for python -m nl2sparql.mcp
+│   ├── server.py                  # MCP server implementation
+│   ├── tools.py                   # Tool handler implementations
+│   └── resources.py               # Resource providers
+├── constraints/                   # Domain-specific prompts and validation
+│   ├── __init__.py                # Public API for constraints
+│   ├── base.py                    # Core SPARQL patterns and system prompt
+│   ├── emotion.py                 # ELITA emotion constraints
+│   ├── translation.py             # Dialect translation constraints
+│   ├── semantic.py                # CompL-it semantic constraints
+│   ├── lexical_relation.py        # Synonym/antonym constraints
+│   ├── multi_entry.py             # Multi-entry pattern validation
+│   ├── compositional.py           # Complex query reasoning
+│   └── prompt_builder.py          # Dynamic prompt construction
+├── retrieval/                     # Hybrid retrieval system
+│   ├── __init__.py                # Public API for retrieval
+│   ├── hybrid_retriever.py        # Main retriever combining all methods
+│   ├── ontology_retriever.py      # Semantic search over ontology definitions
+│   ├── embeddings.py              # Sentence transformers + FAISS
+│   ├── bm25.py                    # BM25 with pattern boosting
+│   └── patterns.py                # Query pattern inference (keyword + semantic)
+├── generation/                    # Query synthesis
+│   ├── __init__.py                # Public API for generation
+│   ├── synthesizer.py             # Main NL2SPARQL class
+│   ├── adapters.py                # Query adaptation utilities
+│   └── normalizer.py              # SPARQL variable name normalization
+├── llm/                           # LLM provider abstraction
+│   ├── __init__.py                # Public API for LLM clients
+│   ├── base.py                    # Abstract client interface
+│   ├── openai_client.py           # OpenAI implementation
+│   ├── anthropic_client.py        # Anthropic implementation
+│   ├── mistral_client.py          # Mistral implementation
+│   ├── gemini_client.py           # Google Gemini implementation
+│   └── ollama_client.py           # Ollama implementation
+├── validation/                    # Query validation
+│   ├── __init__.py                # Public API for validation
+│   ├── syntax.py                  # rdflib syntax validation
+│   ├── endpoint.py                # SPARQL endpoint validation
+│   └── semantic.py                # Constraint-based validation
+├── evaluation/                    # Evaluation framework
+│   ├── __init__.py                # Public API for evaluation
+│   ├── evaluate.py                # Test runner and structural metrics
+│   ├── f1_evaluator.py            # F1 score on answers (primary metric)
+│   └── batch_evaluate.py          # Multi-model comparison
 └── data/
-    ├── sparql_queries_examples.json  # Example queries dataset
-    ├── test_dataset.json             # Evaluation test cases
+    ├── sparql_queries_examples.json  # Example queries dataset (few-shot retrieval)
+    ├── test_dataset.json             # Evaluation test cases (100 cases)
     └── ontology.json                 # Ontology catalog (classes & properties)
 ```
 
@@ -552,8 +554,8 @@ The system understands LiITA's multi-source architecture:
 
 | Provider | Default Model | Other Models |
 |----------|--------------|--------------|
-| OpenAI | gpt-4.1-mini | gpt-5.2, gpt-4.1, gpt-4.1-nano, gpt-4-turbo, gpt-3.5-turbo |
-| Anthropic | claude-sonnet-4-20250514 | claude-opus-4-20250514, claude-3-5-haiku-20241022 |
+| OpenAI | gpt-4.1-mini | gpt-4.1, gpt-4.1-nano, gpt-4-turbo, gpt-3.5-turbo |
+| Anthropic | claude-sonnet-4-6 | claude-opus-4-6, claude-haiku-4-5-20251001 |
 | Mistral | mistral-large-latest | mistral-medium-latest, mistral-small-latest |
 | Gemini | gemini-pro | gemini-pro-vision |
 | Ollama | llama3 | mistral, codellama, phi3 |
@@ -571,8 +573,8 @@ nl2sparql evaluate
 # Evaluate with specific provider
 nl2sparql evaluate -p anthropic
 
-# Test only single-pattern queries
-nl2sparql evaluate -c single_pattern
+# Test only complex queries
+nl2sparql evaluate -c complex
 
 # Test specific patterns
 nl2sparql evaluate --pattern EMOTION_LEXICON --pattern TRANSLATION
@@ -631,42 +633,37 @@ save_report(report, "report.json")  # Includes generated SPARQL queries
 # Batch model comparison
 configs = [
     ModelConfig("openai", "gpt-4.1", "GPT-4.1"),
-    ModelConfig("anthropic", "claude-sonnet-4-20250514", "Claude Sonnet"),
+    ModelConfig("anthropic", "claude-sonnet-4-6", "Claude Sonnet 4.6"),
 ]
-results = run_batch_evaluation(configs, output_dir="./reports")
+results = run_batch_evaluation(configs)
 comparison = create_comparison_report(results, "comparison.json")
 print_comparison(comparison)
 ```
 
-### Metrics
+### F1 Score Evaluation
+
+The primary evaluation metric is **F1 Score on Answers**: both the gold and predicted SPARQL queries are executed against the LiITA endpoint, and their result sets are compared using precision, recall, and F1. This captures whether the system retrieves the *right answers*, not just whether the query is syntactically correct.
+
+```bash
+# Run F1 evaluation (English, with LIMIT stripping)
+python scripts/run_f1_evaluation.py \
+    --provider anthropic \
+    --model claude-sonnet-4-6 \
+    --language en \
+    --strip-limit
+
+# Re-evaluate an existing report without re-running translation
+python scripts/reevaluate_no_limit.py reports/f1_report_anthropic_claude-sonnet-4-6.json
+```
+
+### Structural Metrics
 
 - **Syntax validity**: Percentage of queries that parse correctly
 - **Endpoint success**: Percentage of queries that execute without errors
 - **Component score**: Percentage of expected SPARQL components present
 - **Pattern detection accuracy**: How well the system identifies query types
 
-See [docs/evaluation.md](docs/evaluation.md) for detailed documentation.
-
-## Synthetic Data Generation
-
-Generate training data for fine-tuning custom LLMs on NL2SPARQL:
-
-```bash
-# Generate synthetic (NL, SPARQL) pairs
-nl2sparql generate-synthetic -o training_data.jsonl
-
-# With options
-nl2sparql generate-synthetic -o data.jsonl -n 10 -m 500 -f alpaca
-```
-
-The generator creates validated training pairs by:
-1. Generating NL variations of seed examples
-2. Creating pattern combination questions
-3. Validating all SPARQL against the endpoint
-
-Output formats: `jsonl`, `json`, `alpaca`, `sharegpt`, `hf` (HuggingFace)
-
-See [docs/synthetic_data.md](docs/synthetic_data.md) for detailed documentation.
+See [docs/evaluation.md](docs/evaluation.md) and [docs/f1_evaluator.md](docs/f1_evaluator.md) for detailed documentation.
 
 ## License
 
