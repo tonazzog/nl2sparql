@@ -142,7 +142,7 @@ def translate(
         >>> print(result.sparql)
     """
     if model is None:
-        model = AVAILABLE_PROVIDERS.get(provider, {}).get("default_model", "gpt-4.1")
+        model = AVAILABLE_PROVIDERS.get(provider, {}).get("default_model", "gpt-5-mini")
 
     NL2SPARQL = _get_translator()
     translator = NL2SPARQL(

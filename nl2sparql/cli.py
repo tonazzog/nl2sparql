@@ -616,7 +616,7 @@ def agent_command(
     Examples:
         nl2sparql agent "Find all nouns expressing sadness"
         nl2sparql agent -p anthropic "Trova aggettivi con traduzioni"
-        nl2sparql agent -p openai -m gpt-4.1 "Complex query here"
+        nl2sparql agent -p openai -m gpt-5.2 "Complex query here"
         nl2sparql agent --stream "Show step-by-step progress"
     """
     try:
@@ -997,7 +997,7 @@ def mcp_serve(
         nl2sparql mcp serve
         nl2sparql mcp serve --provider anthropic
         nl2sparql mcp serve --provider ollama --model llama3
-        nl2sparql mcp serve --provider openai --model gpt-4.1
+        nl2sparql mcp serve --provider openai --model gpt-5.2
     """
     try:
         from .mcp import NL2SPARQLMCPServer

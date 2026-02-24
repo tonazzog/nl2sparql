@@ -152,7 +152,7 @@ from nl2sparql import NL2SPARQL
 # Initialize with specific provider
 translator = NL2SPARQL(
     provider="openai",
-    model="gpt-4.1",
+    model="gpt-5.2",
     validate=True,
     fix_errors=True,
     max_retries=3
@@ -198,7 +198,7 @@ from nl2sparql.agent import NL2SPARQLAgent
 # Initialize with provider and optional API key
 agent = NL2SPARQLAgent(
     provider="openai",       # or "anthropic", "mistral", "gemini", "ollama"
-    model="gpt-4.1",          # optional, uses provider default
+    model="gpt-5.2",          # optional, uses provider default
     api_key="sk-...",        # optional, uses environment variable
 )
 
@@ -403,7 +403,7 @@ python scripts/gradio_app_agent.py
 # Use different providers for orchestrator and translator
 python scripts/gradio_app_agent.py \
     --orchestrator-provider anthropic --orchestrator-model claude-3-haiku-20240307 \
-    --translator-provider openai --translator-model gpt-4.1
+    --translator-provider openai --translator-model gpt-5.2
 
 # With explicit API keys
 python scripts/gradio_app_agent.py \
@@ -554,7 +554,7 @@ The system understands LiITA's multi-source architecture:
 
 | Provider | Default Model | Other Models |
 |----------|--------------|--------------|
-| OpenAI | gpt-4.1-mini | gpt-4.1, gpt-4.1-nano, gpt-4-turbo, gpt-3.5-turbo |
+| OpenAI | gpt-5-mini | gpt-5.2, gpt-5.2-pro, gpt-5 |
 | Anthropic | claude-sonnet-4-6 | claude-opus-4-6, claude-haiku-4-5-20251001 |
 | Mistral | mistral-large-latest | mistral-medium-latest, mistral-small-latest |
 | Gemini | gemini-pro | gemini-pro-vision |
@@ -632,7 +632,7 @@ save_report(report, "report.json")  # Includes generated SPARQL queries
 
 # Batch model comparison
 configs = [
-    ModelConfig("openai", "gpt-4.1", "GPT-4.1"),
+    ModelConfig("openai", "gpt-5.2", "GPT-5.2"),
     ModelConfig("anthropic", "claude-sonnet-4-6", "Claude Sonnet 4.6"),
 ]
 results = run_batch_evaluation(configs)
@@ -652,8 +652,7 @@ python scripts/run_f1_evaluation.py \
     --language en \
     --strip-limit
 
-# Re-evaluate an existing report without re-running translation
-python scripts/reevaluate_no_limit.py reports/f1_report_anthropic_claude-sonnet-4-6.json
+
 ```
 
 ### Structural Metrics

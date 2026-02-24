@@ -7,7 +7,7 @@ from typing import Any, Optional
 from .base import LLMClient
 
 # Models that require max_completion_tokens instead of max_tokens
-NEWER_MODELS = {"gpt-5.2","gpt-5.1", "gpt-5", "o1", "o1-mini", "o1-preview", "o3", "o3-mini"}
+NEWER_MODELS = {"gpt-5.2", "gpt-5.2-pro", "gpt-5.2-codex", "gpt-5.1", "gpt-5", "gpt-5-mini", "o1", "o1-mini", "o1-preview", "o3", "o3-mini"}
 
 
 class OpenAIClient(LLMClient):

@@ -48,7 +48,7 @@ class AgentAdapter:
         from nl2sparql.agent import NL2SPARQLAgent
         from nl2sparql.evaluation import AgentAdapter, evaluate_dataset
 
-        agent = NL2SPARQLAgent(provider="openai", model="gpt-4.1-mini")
+        agent = NL2SPARQLAgent(provider="openai", model="gpt-5-mini")
         adapter = AgentAdapter(agent)
 
         report = evaluate_dataset(adapter)

@@ -94,7 +94,7 @@ from langchain_openai import ChatOpenAI
 def analyze_question(state: NL2SPARQLState) -> dict:
     """Analyze the question to understand what's needed."""
 
-    llm = ChatOpenAI(model="gpt-4.1", temperature=0)
+    llm = ChatOpenAI(model="gpt-5.2", temperature=0)
 
     analysis_prompt = f"""Analyze this natural language question for SPARQL translation:
 
@@ -133,7 +133,7 @@ def plan_query(state: NL2SPARQLState) -> dict:
     if state["complexity"] == "simple":
         return {"sub_tasks": [state["question"]], "current_task_index": 0}
 
-    llm = ChatOpenAI(model="gpt-4.1", temperature=0)
+    llm = ChatOpenAI(model="gpt-5.2", temperature=0)
 
     planning_prompt = f"""Break this complex query into simpler sub-tasks:
 
@@ -199,7 +199,7 @@ def retrieve_examples(state: NL2SPARQLState) -> dict:
 def generate_sparql(state: NL2SPARQLState) -> dict:
     """Generate SPARQL query using LLM."""
 
-    llm = ChatOpenAI(model="gpt-4.1", temperature=0)
+    llm = ChatOpenAI(model="gpt-5.2", temperature=0)
 
     # Include refinement history if available
     refinement_context = ""
@@ -271,7 +271,7 @@ def verify_results(state: NL2SPARQLState) -> dict:
 
     # Semantic verification using LLM
     if state["result_count"] > 0 and state["execution_result"]:
-        llm = ChatOpenAI(model="gpt-4.1-mini", temperature=0)
+        llm = ChatOpenAI(model="gpt-5-mini", temperature=0)
 
         sample_results = state["execution_result"][:5]
 

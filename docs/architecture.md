@@ -229,9 +229,9 @@ If a query executes successfully and returns results, we trust the retrieval-bas
 
 The agent uses different model tiers for different tasks to balance cost and capability:
 
-- **Fast tier**: Used for analysis, planning, and verification. These tasks require understanding but not complex generation. Uses cheaper models like `gpt-4.1-mini` or `claude-3-5-haiku`.
+- **Fast tier**: Used for analysis, planning, and verification. These tasks require understanding but not complex generation. Uses cheaper models like `gpt-5-mini` or `claude-3-5-haiku`.
 
-- **Default tier**: Used for SPARQL generation, which requires precise syntax and domain knowledge. Uses more capable models like `gpt-4.1` or `claude-sonnet-4`.
+- **Default tier**: Used for SPARQL generation, which requires precise syntax and domain knowledge. Uses more capable models like `gpt-5.2` or `claude-sonnet-4`.
 
 If a specific model is provided, it's used for all operations.
 
@@ -415,7 +415,7 @@ from nl2sparql.agent import NL2SPARQLAgent
 
 agent = NL2SPARQLAgent(
     provider="openai",
-    model="gpt-4.1",        # optional
+    model="gpt-5.2",        # optional
     api_key="sk-...",      # optional
 )
 

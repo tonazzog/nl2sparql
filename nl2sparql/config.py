@@ -26,7 +26,7 @@ class LLMConfig:
     """Configuration for LLM providers."""
 
     provider: str = "openai"
-    model: str = "gpt-4.1-mini"
+    model: str = "gpt-5-mini"
     temperature: float = 0.0
     max_tokens: int = 2048
     api_key: Optional[str] = None
@@ -94,12 +94,12 @@ class NL2SPARQLConfig:
 # Available LLM providers and their default models
 AVAILABLE_PROVIDERS = {
     "openai": {
-        "default_model": "gpt-4.1-mini",
-        "models": ["gpt-5.2","gpt-4.1","gpt-4.1-mini","gpt-4.1-nano","gpt-4o", "gpt-4o-mini", "gpt-4-turbo", "gpt-3.5-turbo"],
+        "default_model": "gpt-5-mini",
+        "models": ["gpt-5.2", "gpt-5.2-pro", "gpt-5", "gpt-5-mini"],
     },
     "anthropic": {
-        "default_model": "claude-sonnet-4-20250514",
-        "models": ["claude-opus-4-20250514", "claude-sonnet-4-20250514", "claude-3-5-haiku-20241022"],
+        "default_model": "claude-sonnet-4-6",
+        "models": ["claude-opus-4-6", "claude-sonnet-4-6", "claude-haiku-4-5-20251001"],
     },
     "mistral": {
         "default_model": "mistral-large-latest",

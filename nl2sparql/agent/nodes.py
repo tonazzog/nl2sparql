@@ -29,8 +29,8 @@ def get_llm(
     """
     # Default models per provider and tier
     DEFAULT_MODELS = {
-        "openai": {"fast": "gpt-4.1-mini", "default": "gpt-4.1"},
-        "anthropic": {"fast": "claude-3-5-haiku-latest", "default": "claude-sonnet-4-20250514"},
+        "openai": {"fast": "gpt-5-mini", "default": "gpt-5.2"},
+        "anthropic": {"fast": "claude-haiku-4-5-20251001", "default": "claude-sonnet-4-6"},
         "mistral": {"fast": "mistral-small-latest", "default": "mistral-large-latest"},
         "gemini": {"fast": "gemini-1.5-flash", "default": "gemini-1.5-pro"},
         "ollama": {"fast": "llama3.2", "default": "llama3.2"},

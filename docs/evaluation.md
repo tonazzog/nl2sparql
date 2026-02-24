@@ -117,7 +117,7 @@ nl2sparql evaluate --agent
 nl2sparql evaluate -p anthropic -m claude-sonnet-4-6
 
 # Agent evaluation with specific provider
-nl2sparql evaluate --agent -p openai -m gpt-4.1
+nl2sparql evaluate --agent -p openai -m gpt-5.2
 
 # Test in English instead of Italian
 nl2sparql evaluate -l en
@@ -152,7 +152,7 @@ from nl2sparql.evaluation import (
 # Initialize translator
 translator = NL2SPARQL(
     provider="openai",
-    model="gpt-4.1",
+    model="gpt-5.2",
     validate=True,
     fix_errors=True,
 )
@@ -192,7 +192,7 @@ from nl2sparql.evaluation import (
 # Initialize agent
 agent = NL2SPARQLAgent(
     provider="openai",
-    model="gpt-4.1-mini",
+    model="gpt-5-mini",
 )
 
 # Wrap with adapter for evaluation
@@ -229,7 +229,7 @@ The batch evaluation feature allows comparing multiple LLM providers and models 
 ### Command Line Interface
 
 ```bash
-# Quick comparison (GPT-4.1-mini vs Claude 3.5 Haiku)
+# Quick comparison (GPT-5-mini vs Claude Haiku 4.5)
 nl2sparql batch-evaluate -p quick
 
 # Compare using the agentic workflow
@@ -248,7 +248,7 @@ nl2sparql batch-evaluate -p all_defaults
 nl2sparql batch-evaluate -p openai -o ./reports -c comparison.json
 
 # Custom model selection
-nl2sparql batch-evaluate --provider openai --provider anthropic --model gpt-4.1 --model claude-sonnet-4-6
+nl2sparql batch-evaluate --provider openai --provider anthropic --model gpt-5.2 --model claude-sonnet-4-6
 
 # Skip endpoint validation for faster results
 nl2sparql batch-evaluate -p quick --no-endpoint
@@ -258,8 +258,8 @@ nl2sparql batch-evaluate -p quick --no-endpoint
 
 | Preset | Models Included | Use Case |
 |--------|-----------------|----------|
-| `quick` | GPT-4.1-mini, Claude Haiku 4.5 | Fast initial comparison |
-| `openai` | GPT-4.1, GPT-4.1-mini, GPT-4.1-nano | Compare OpenAI tiers |
+| `quick` | GPT-5-mini, Claude Haiku 4.5 | Fast initial comparison |
+| `openai` | GPT-5.2, GPT-5, GPT-5-mini | Compare OpenAI tiers |
 | `anthropic` | Claude Sonnet 4.6, Claude Haiku 4.5 | Compare Anthropic tiers |
 | `mistral` | Mistral Large, Mistral Small | Compare Mistral tiers |
 | `all_defaults` | Default from each provider | Cross-provider comparison |
@@ -285,8 +285,8 @@ results = run_batch_evaluation(
 
 # Or define custom configurations
 configs = [
-    ModelConfig("openai", "gpt-4.1", "GPT-4.1"),
-    ModelConfig("openai", "gpt-4.1-mini", "GPT-4.1-mini"),
+    ModelConfig("openai", "gpt-5.2", "GPT-5.2"),
+    ModelConfig("openai", "gpt-5-mini", "GPT-5-mini"),
     ModelConfig("anthropic", "claude-sonnet-4-6", "Claude Sonnet 4.6"),
     ModelConfig("anthropic", "claude-haiku-4-5-20251001", "Claude Haiku 4.5"),
 ]
@@ -323,8 +323,8 @@ Timestamp: 2025-01-15T10:30:00
 --------------------------------------------------------------------------------
 Model                          Avg F1     Syntax     Endpoint   Component  Time
 --------------------------------------------------------------------------------
-GPT-4.1                        0.7012     91.4%      80.0%      85.7%      2.34s
-GPT-4.1-mini                   0.6543     88.6%      74.3%      82.1%      1.12s
+GPT-5.2                        0.7012     91.4%      80.0%      85.7%      2.34s
+GPT-5-mini                     0.6543     88.6%      74.3%      82.1%      1.12s
 Claude Sonnet 4.6              0.7224     94.3%      85.7%      89.2%      2.87s
 Claude Haiku 4.5               0.6201     85.7%      71.4%      78.5%      0.95s
 --------------------------------------------------------------------------------
@@ -333,24 +333,24 @@ Rankings:
 
   By Avg F1 Score (primary metric):
     1. Claude Sonnet 4.6: 0.7224
-    2. GPT-4.1: 0.7012
-    3. GPT-4.1-mini: 0.6543
+    2. GPT-5.2: 0.7012
+    3. GPT-5-mini: 0.6543
     4. Claude Haiku 4.5: 0.6201
 
   By Syntax Validity:
     1. Claude Sonnet 4.6: 94.3%
-    2. GPT-4.1: 91.4%
-    3. GPT-4.1-mini: 88.6%
+    2. GPT-5.2: 91.4%
+    3. GPT-5-mini: 88.6%
     4. Claude Haiku 4.5: 85.7%
 
   By Endpoint Success:
     1. Claude Sonnet 4.6: 85.7%
-    2. GPT-4.1: 80.0%
+    2. GPT-5.2: 80.0%
     ...
 
   By Generation Speed (fastest):
     1. Claude Haiku 4.5: 0.95s
-    2. GPT-4.1-mini: 1.12s
+    2. GPT-5-mini: 1.12s
     ...
 ```
 
@@ -360,8 +360,8 @@ Individual reports are always saved to `reports/` by default (one per model):
 
 ```
 reports/
-├── report_GPT-4.1.json
-├── report_GPT-4.1-mini.json
+├── report_GPT-5-2.json
+├── report_GPT-5-mini.json
 ├── report_Claude_Sonnet_4-6.json
 └── report_Claude_Haiku_4-5.json
 ```
