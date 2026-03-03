@@ -18,7 +18,65 @@ from dataclasses import dataclass, field
 from typing import Optional
 
 from ..config import LIITA_ENDPOINT
-from ..synthetic.test_generator import ANSWER_VARIABLE_CATEGORIES
+
+# Answer variable classification based on canonical naming conventions
+# from constraints/base.py
+
+ANSWER_VARIABLE_CATEGORIES = {
+    # Primary answers - the main output values users care about
+    "primary": {
+        # Written representations (actual word forms)
+        "italianWord", "sicilianWord", "parmigianoWord", "dialectWord",
+        "writtenRep", "word", "lemma", "inflectedForm",
+        "wr",  # Common abbreviation for writtenRep
+        # Semantic content
+        "definition", "senseLabel", "senseDefinition",
+        # Emotion/sentiment labels
+        "emotionLabel", "polarityLabel",
+        # Relation results
+        "hypernymWord", "hyponymWord", "synonymWord", "antonymWord",
+        "relatedWord", "partWord", "wholeWord",
+    },
+
+    # Secondary answers - supporting information (but still meaningful output)
+    "secondary": {
+        # Part of speech and morphology
+        "pos", "sensePOS", "gender", "italianGender", "sicilianGender",
+        "grammaticalInfo", "formType", "morphPattern",
+        # Lemma resources (URIs but often displayed)
+        "italianLemma", "sicilianLemma", "parmigianoLemma", "dialectLemma",
+        # Labels and metadata
+        "lexEntryLabel", "label", "expressionLabel",
+        # Sense resources
+        "sense", "relatedSense", "hypSense",
+        # Dialect/language info
+        "dialectName", "senseLexicon",
+    },
+
+    # Aggregates - COUNT, AVG, etc. (require exact value match)
+    "aggregates": {
+        "count", "avgPolarityValue", "entries", "genders", "score",
+        "wordCount", "lemmaCount", "senseCount", "linkCount",
+    },
+
+    # Numeric values
+    "numeric": {
+        "polarityValue", "value", "len", "length",
+    },
+
+    # URIs - intermediate variables, typically not compared directly
+    "uris": {
+        "emotionLexEntry", "polarityLexEntry", "translationEntry",
+        "italianLexEntry", "sicilianLexEntry", "parmigianoLexEntry",
+        "dialectLexEntry", "emotion", "polarity", "emotionResource",
+        "graph", "g", "wType", "form", "cf", "lexicalEntry",
+        "lemmaResource", "wordMeronym", "senseMeronym",
+        "italianLexicalEntry", "sicilianForm", "parmigianoForm",
+        "dialectForm", "dialectLemmaBank",
+        # Metadata/exploration variables
+        "p", "o", "s",  # predicate, object, subject
+    },
+}
 
 
 # ---------------------------------------------------------------------------

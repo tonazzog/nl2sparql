@@ -2,16 +2,14 @@
   "summary": {
     "total_evaluated": 100,
     "total_skipped": 0,
-    "avg_precision": 0.7159198890082348,
-    "avg_recall": 0.7342401335340256,
-    "avg_f1": 0.7224315852889542,
-    "macro_f1": 0.737518076156579,
-    "note": "LIMIT/OFFSET stripped from predicted queries",
-    "source_report": "f1_report_anthropic_claude-sonnet-5-6.json"
+    "avg_precision": 0.7359198890082348,
+    "avg_recall": 0.7542401335340255,
+    "avg_f1": 0.7424315852889543,
+    "macro_f1": 0.7464466475851506
   },
   "by_category": {
     "complex": {
-      "avg_f1": 0.710780062767861,
+      "avg_f1": 0.7464943484821467,
       "count": 56
     },
     "emotion": {
@@ -29,7 +27,7 @@
   },
   "by_pattern": {
     "EMOTION_LEXICON": {
-      "avg_f1": 0.70159035591865,
+      "avg_f1": 0.7293681336964278,
       "count": 36
     },
     "TRANSLATION": {
@@ -45,19 +43,19 @@
       "count": 15
     },
     "SEMANTIC_RELATION": {
-      "avg_f1": 0.23183391003460208,
+      "avg_f1": 0.2906574394463668,
       "count": 17
     },
     "SERVICE_INTEGRATION": {
-      "avg_f1": 0.6815413503711828,
+      "avg_f1": 0.7023746837045161,
       "count": 48
     },
     "POS_FILTER": {
-      "avg_f1": 0.5180840016791498,
+      "avg_f1": 0.613322096917245,
       "count": 21
     },
     "SENSE_DEFINITION": {
-      "avg_f1": 0.9012671304015856,
+      "avg_f1": 0.9568226859571412,
       "count": 18
     },
     "META_GRAPH": {
@@ -792,20 +790,21 @@
     },
     {
       "test_id": 2043,
-      "f1": 0.0,
-      "precision": 0.0,
-      "recall": 0.0,
-      "gold_count": 50,
-      "predicted_count": 50,
-      "true_positives": 0,
+      "f1": 1.0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "gold_count": 558,
+      "predicted_count": 558,
+      "true_positives": 558,
       "aggregate_score": null,
       "aggregate_details": {},
       "variable_mapping": {
-        "emotionLabel": "italianWord",
-        "definition": "emotionLabel",
+        "italianWord": "italianWord",
+        "emotionLabel": "emotionLabel",
+        "definition": "definition",
         "polarityValue": "polarityValue"
       },
-      "predicted_sparql": "PREFIX dcterms: <http://purl.org/dc/terms/>\nPREFIX elita: <http://w3id.org/elita/>\nPREFIX lexinfo: <http://www.lexinfo.net/ontology/3.0/lexinfo#>\nPREFIX lila: <http://lila-erc.eu/ontologies/lila/>\nPREFIX lime: <http://www.w3.org/ns/lemon/lime#>\nPREFIX marl: <http://www.gsi.upm.es/ontologies/marl/ns#>\nPREFIX ontolex: <http://www.w3.org/ns/lemon/ontolex#>\nPREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>\nPREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>\nPREFIX skos: <http://www.w3.org/2004/02/skos/core#>\nPREFIX vartrans: <http://www.w3.org/ns/lemon/vartrans#>\nPREFIX xsd: <http://www.w3.org/2001/XMLSchema#>\n\nSELECT DISTINCT ?italianWord ?emotionLabel ?polarityValue ?definition\nWHERE {\n    GRAPH <http://liita.it/data> {\n        ?italianLemma a lila:Lemma ;\n                      lila:hasPOS lila:verb ;\n                      ontolex:writtenRep ?italianWord .\n    }\n\n    ?emotionEntry ontolex:canonicalForm ?italianLemma .\n    GRAPH <http://w3id.org/elita> {\n        ?emotionEntry elita:HasEmotion ?emotion ;\n                      marl:hasPolarityValue ?polarityValue .\n        ?emotion rdfs:label ?emotionLabel .\n        FILTER(?polarityValue > 0.7)\n    }\n\n    SERVICE <https://klab.ilc.cnr.it/graphdb-compl-it/> {\n        ?word ontolex:canonicalForm [ ontolex:writtenRep ?italianWord ] ;\n              ontolex:sense [ skos:definition ?definition ] .\n    }\n}\nLIMIT 50",
+      "predicted_sparql": "PREFIX dcterms: <http://purl.org/dc/terms/>\nPREFIX elita: <http://w3id.org/elita/>\nPREFIX lexinfo: <http://www.lexinfo.net/ontology/3.0/lexinfo#>\nPREFIX lila: <http://lila-erc.eu/ontologies/lila/>\nPREFIX lime: <http://www.w3.org/ns/lemon/lime#>\nPREFIX marl: <http://www.gsi.upm.es/ontologies/marl/ns#>\nPREFIX ontolex: <http://www.w3.org/ns/lemon/ontolex#>\nPREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>\nPREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>\nPREFIX skos: <http://www.w3.org/2004/02/skos/core#>\nPREFIX vartrans: <http://www.w3.org/ns/lemon/vartrans#>\nPREFIX xsd: <http://www.w3.org/2001/XMLSchema#>\n\nSELECT DISTINCT ?italianWord ?emotionLabel ?polarityValue ?definition\nWHERE {\n    GRAPH <http://liita.it/data> {\n        ?italianLemma a lila:Lemma ;\n                      lila:hasPOS lila:verb ;\n                      ontolex:writtenRep ?italianWord .\n    }\n\n    ?emotionEntry ontolex:canonicalForm ?italianLemma .\n    GRAPH <http://w3id.org/elita> {\n        ?emotionEntry elita:HasEmotion ?emotion ;\n                      marl:hasPolarityValue ?polarityValue .\n        ?emotion rdfs:label ?emotionLabel .\n        FILTER(?polarityValue > 0.7)\n    }\n\n    SERVICE <https://klab.ilc.cnr.it/graphdb-compl-it/> {\n        ?word ontolex:canonicalForm [ ontolex:writtenRep ?italianWord ] ;\n              ontolex:sense [ skos:definition ?definition ] .\n    }\n}",
       "gold_error": null,
       "predicted_error": null
     },
@@ -1650,12 +1649,12 @@
     },
     {
       "test_id": 2106,
-      "f1": 0.0,
-      "precision": 0.0,
-      "recall": 0.0,
-      "gold_count": 56,
+      "f1": 1.0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "gold_count": 1,
       "predicted_count": 1,
-      "true_positives": 0,
+      "true_positives": 1,
       "aggregate_score": null,
       "aggregate_details": {},
       "variable_mapping": {

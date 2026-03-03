@@ -557,7 +557,7 @@ The system understands LiITA's multi-source architecture:
 | OpenAI | gpt-5-mini | gpt-5.2, gpt-5.2-pro, gpt-5 |
 | Anthropic | claude-sonnet-4-6 | claude-opus-4-6, claude-haiku-4-5-20251001 |
 | Mistral | mistral-large-latest | mistral-medium-latest, mistral-small-latest |
-| Gemini | gemini-pro | gemini-pro-vision |
+| Gemini | gemini-2.5-flash | gemini-2.5-pro, gemini-2.5-flash-lite, gemini-2.0-flash |
 | Ollama | llama3 | mistral, codellama, phi3 |
 
 ## Evaluation

@@ -106,8 +106,8 @@ AVAILABLE_PROVIDERS = {
         "models": ["mistral-large-latest", "mistral-medium-latest", "mistral-small-latest"],
     },
     "gemini": {
-        "default_model": "gemini-pro",
-        "models": ["gemini-pro", "gemini-pro-vision"],
+        "default_model": "gemini-2.5-flash",
+        "models": ["gemini-2.5-pro", "gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-2.0-flash"],
     },
     "ollama": {
         "default_model": "llama3",
