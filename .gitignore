@@ -88,6 +88,9 @@ Thumbs.db
 *.faiss
 *.pkl
 
+# Claude Code
+CLAUDE.md
+
 # API keys (never commit these!)
 .env.local
 .env.*.local
