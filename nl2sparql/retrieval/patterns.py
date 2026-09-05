@@ -770,7 +770,9 @@ class PatternEmbeddingIndex:
                     "sentence-transformers not installed. "
                     "Install with: pip install sentence-transformers"
                 )
-            self._encoder = SentenceTransformer(self.model_name)
+            from .embeddings import resolve_local_model_path
+
+            self._encoder = SentenceTransformer(resolve_local_model_path(self.model_name))
         return self._encoder
 
     def _initialize(self) -> None:

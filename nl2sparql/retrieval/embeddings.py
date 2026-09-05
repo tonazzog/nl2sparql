@@ -5,6 +5,34 @@ from typing import Optional
 import numpy as np
 
 
+def resolve_local_model_path(model_name: str) -> str:
+    """Resolve a sentence-transformers model name to its local cache path if fully cached.
+
+    Loading from a resolved local directory (rather than a bare repo id) makes
+    SentenceTransformer skip Hub network calls entirely, including the
+    `transformers` mistral-tokenizer-regex check that ignores HF_HUB_OFFLINE
+    and otherwise fails hard on networks that block huggingface.co.
+    Falls back to the original model_name (unchanged online/cache behavior)
+    if the model isn't already downloaded.
+    """
+    try:
+        from huggingface_hub import snapshot_download
+    except ImportError:
+        return model_name
+
+    candidates = (
+        [model_name]
+        if "/" in model_name
+        else [f"sentence-transformers/{model_name}", model_name]
+    )
+    for repo_id in candidates:
+        try:
+            return snapshot_download(repo_id, local_files_only=True)
+        except Exception:
+            continue
+    return model_name
+
+
 class EmbeddingIndex:
     """FAISS index for semantic similarity search."""
 
@@ -28,7 +56,7 @@ class EmbeddingIndex:
             )
 
         self.model_name = model_name
-        self.encoder = SentenceTransformer(model_name)
+        self.encoder = SentenceTransformer(resolve_local_model_path(model_name))
         self.index: Optional[faiss.IndexFlatIP] = None
         self.embeddings: Optional[np.ndarray] = None
 

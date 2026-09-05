@@ -53,9 +53,12 @@ class OpenAIClient(LLMClient):
         params = {
             "model": self.model,
             "messages": messages,
-            "temperature": temperature,
             **kwargs,
         }
+
+        # Reasoning models (gpt-5*, o1, o3) only support the default temperature (1)
+        if not self._uses_max_completion_tokens():
+            params["temperature"] = temperature
 
         # Use appropriate token limit parameter based on model
         if self._uses_max_completion_tokens():
@@ -121,9 +124,12 @@ class OpenAIClient(LLMClient):
             "model": self.model,
             "messages": openai_messages,
             "tools": tools,
-            "temperature": temperature,
             **kwargs,
         }
+
+        # Reasoning models (gpt-5*, o1, o3) only support the default temperature (1)
+        if not self._uses_max_completion_tokens():
+            params["temperature"] = temperature
 
         # Use appropriate token limit parameter based on model
         if self._uses_max_completion_tokens():
