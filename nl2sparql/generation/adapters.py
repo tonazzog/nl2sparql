@@ -68,6 +68,7 @@ def adapt_query(
     detected_patterns: list[str],
     temperature: float = 0.0,
     max_tokens: int = 2048,
+    known_failures: list[str] | None = None,
 ) -> str:
     """
     Adapt an existing query to answer a new question.
@@ -82,6 +83,8 @@ def adapt_query(
         detected_patterns: Detected query patterns
         temperature: LLM sampling temperature
         max_tokens: Maximum tokens to generate
+        known_failures: Optional remembered past-mistake error messages
+            for similar past questions (from translation memory)
 
     Returns:
         Adapted SPARQL query
@@ -90,6 +93,7 @@ def adapt_query(
         example=example,
         user_question=user_question,
         detected_patterns=detected_patterns,
+        known_failures=known_failures,
     )
 
     response = client.chat(
@@ -111,6 +115,7 @@ def synthesize_query(
     schema_context: str = "",
     temperature: float = 0.0,
     max_tokens: int = 2048,
+    known_failures: list[str] | None = None,
 ) -> str:
     """
     Synthesize a new SPARQL query from exemplars.
@@ -126,6 +131,8 @@ def synthesize_query(
         schema_context: Additional schema information
         temperature: LLM sampling temperature
         max_tokens: Maximum tokens to generate
+        known_failures: Optional remembered past-mistake error messages
+            for similar past questions (from translation memory)
 
     Returns:
         Synthesized SPARQL query
@@ -135,6 +142,7 @@ def synthesize_query(
         exemplars=exemplars,
         detected_patterns=detected_patterns,
         schema_context=schema_context,
+        known_failures=known_failures,
     )
 
     response = client.chat(

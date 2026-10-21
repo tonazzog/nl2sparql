@@ -104,11 +104,29 @@ def format_exemplars(exemplars: list["QueryExample"]) -> str:
     return "\n".join(formatted)
 
 
+def format_known_failures(known_failures: list[str]) -> str:
+    """
+    Format remembered past mistakes (for similar past questions) as a
+    prompt section warning the LLM away from repeating them.
+
+    Args:
+        known_failures: Error messages from remembered failed attempts
+
+    Returns:
+        Formatted "known past mistakes" section, or "" if none
+    """
+    if not known_failures:
+        return ""
+    lines = "\n".join(f"- {err}" for err in known_failures[:3])
+    return f"\n## KNOWN PAST MISTAKES FOR SIMILAR QUESTIONS (avoid these):\n{lines}\n"
+
+
 def build_synthesis_prompt(
     user_question: str,
     exemplars: list["QueryExample"],
     detected_patterns: list[str],
     schema_context: str = "",
+    known_failures: list[str] | None = None,
 ) -> tuple[str, str]:
     """
     Build a complete synthesis prompt for SPARQL generation.
@@ -118,6 +136,8 @@ def build_synthesis_prompt(
         exemplars: Retrieved example queries for few-shot learning
         detected_patterns: Patterns detected in the user question
         schema_context: Optional additional schema information
+        known_failures: Optional list of remembered past-mistake error
+            messages for similar past questions (from translation memory)
 
     Returns:
         Tuple of (system_prompt, user_prompt)
@@ -127,6 +147,9 @@ def build_synthesis_prompt(
 
     # Format exemplars
     examples_text = format_exemplars(exemplars) if exemplars else ""
+
+    # Format remembered past mistakes, if any
+    failures_text = format_known_failures(known_failures or [])
 
     # Build system prompt
     system_prompt = f"""{SYSTEM_PROMPT}
@@ -142,6 +165,7 @@ def build_synthesis_prompt(
 
 ## EXAMPLE QUERIES:
 {examples_text if examples_text else "No examples available."}
+{failures_text}
 
 ## YOUR TASK:
 
@@ -207,6 +231,7 @@ def build_adaptation_prompt(
     example: "QueryExample",
     user_question: str,
     detected_patterns: list[str],
+    known_failures: list[str] | None = None,
 ) -> tuple[str, str]:
     """
     Build a prompt for adapting an existing query to a new question.
@@ -215,11 +240,14 @@ def build_adaptation_prompt(
         example: The example query to adapt
         user_question: The new question to answer
         detected_patterns: Detected patterns
+        known_failures: Optional list of remembered past-mistake error
+            messages for similar past questions (from translation memory)
 
     Returns:
         Tuple of (system_prompt, user_prompt)
     """
     constraints = get_constraints_for_patterns(detected_patterns)
+    failures_text = format_known_failures(known_failures or [])
 
     system_prompt = f"""{SYSTEM_PROMPT}
 
@@ -238,7 +266,7 @@ You have a working SPARQL query that answers a similar question. Adapt it to ans
 ```
 
 **New Question**: {user_question}
-
+{failures_text}
 **Instructions**:
 1. Identify what needs to change (entities, filters, properties)
 2. Keep the structural pattern intact

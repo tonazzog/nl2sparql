@@ -62,6 +62,22 @@ def main():
         default=30,
         help="Query timeout in seconds (default: 30)"
     )
+    serve_parser.add_argument(
+        "--memory-path",
+        default=None,
+        help="Directory for persistent translation memory (default: ~/.nl2sparql/memory)"
+    )
+    serve_parser.add_argument(
+        "--no-memory",
+        action="store_true",
+        help="Disable persistent translation memory for this server instance"
+    )
+    serve_parser.add_argument(
+        "--no-translate",
+        action="store_true",
+        help="Hide the translate tool, so the server never calls an LLM provider "
+             "(the MCP client writes SPARQL itself with the other tools)"
+    )
 
     # config command
     config_parser = subparsers.add_parser(
@@ -84,6 +100,9 @@ def main():
             api_key=args.api_key,
             endpoint=args.endpoint,
             timeout=args.timeout,
+            memory_path=args.memory_path,
+            memory_enabled=not args.no_memory,
+            translate_enabled=not args.no_translate,
         )
         server = NL2SPARQLMCPServer(config)
         asyncio.run(server.run())

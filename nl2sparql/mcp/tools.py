@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
     from ..retrieval import HybridRetriever, OntologyRetriever
     from ..generation.synthesizer import NL2SPARQL
+    from ..memory import TranslationMemory
 
 
 def handle_translate(
@@ -94,15 +95,22 @@ def handle_infer_patterns(arguments: dict[str, Any]) -> dict[str, Any]:
 def handle_retrieve_examples(
     arguments: dict[str, Any],
     retriever: "HybridRetriever",
+    memory: "TranslationMemory | None" = None,
 ) -> dict[str, Any]:
     """Handle retrieve_examples tool - get similar query examples.
 
     Args:
         arguments: {"question": str, "top_k": int (optional), "patterns": dict (optional)}
         retriever: HybridRetriever instance
+        memory: Optional TranslationMemory. When provided, near-duplicate
+            remembered translations and relevant past mistakes are returned
+            alongside the curated examples. They are kept in separate fields
+            because their scores are plain cosine similarities, not on the
+            same scale as the hybrid retrieval scores.
 
     Returns:
-        List of similar examples with scores.
+        List of similar examples with scores (plus remembered_examples and
+        known_failures when memory is enabled).
     """
     question = arguments["question"]
     top_k = arguments.get("top_k", 5)
@@ -127,7 +135,107 @@ def handle_retrieve_examples(
             "pattern_score": round(r.pattern_score, 4),
         })
 
-    return {"examples": examples}
+    if memory is None:
+        return {"examples": examples}
+
+    hit = memory.lookup(question, top_k=3)
+    return {
+        "examples": examples,
+        "remembered_examples": [
+            {
+                "nl": ex.nl,
+                "sparql": ex.sparql,
+                "similarity": round(score, 4),
+                "result_count": ex.result_count,
+                "created_at": ex.created_at,
+            }
+            for ex, score in hit.examples
+        ],
+        "known_failures": [
+            {
+                "nl": f.nl,
+                "sparql": f.sparql,
+                "error": f.error,
+                "similarity": round(score, 4),
+            }
+            for f, score in hit.failures
+        ],
+    }
+
+
+def handle_record_translation(
+    arguments: dict[str, Any],
+    memory: "TranslationMemory | None",
+    endpoint: str,
+    timeout: int,
+) -> dict[str, Any]:
+    """Handle record_translation tool - save a client-built translation to memory.
+
+    Lets an MCP client that writes SPARQL itself (e.g. Claude Desktop, using
+    retrieve_examples/execute_sparql) feed the persistent translation memory
+    without the server making any LLM call.
+
+    A claimed success is re-executed against the endpoint first and is only
+    stored as a learned example if it runs and returns at least one row - the
+    same bar the synthesizer applies. If that check fails, the query is stored
+    as a failure with the real error instead.
+
+    Args:
+        arguments: {"question": str, "sparql": str, "outcome": "success"|"failure",
+            "error": str (optional, for failures)}
+        memory: TranslationMemory instance, or None if memory is disabled
+        endpoint: SPARQL endpoint URL
+        timeout: Query timeout for the verification run
+
+    Returns:
+        What was recorded, and current memory stats.
+    """
+    if memory is None:
+        return {"recorded": None, "reason": "Translation memory is disabled on this server."}
+
+    from ..retrieval.patterns import get_top_patterns, infer_patterns
+    from ..validation.endpoint import validate_endpoint
+
+    question = arguments["question"]
+    sparql = arguments["sparql"]
+    outcome = arguments["outcome"]
+    if outcome not in ("success", "failure"):
+        raise ValueError(f"outcome must be 'success' or 'failure', got {outcome!r}")
+
+    patterns = infer_patterns(question)
+    detected = get_top_patterns(patterns, top_k=5)
+
+    if outcome == "success":
+        ok, error, count, _ = validate_endpoint(sparql, endpoint=endpoint, timeout=timeout)
+        count = count or 0
+        if ok and count > 0:
+            memory.record_success(
+                question=question,
+                sparql=sparql,
+                patterns=patterns,
+                result_count=count,
+                source_pipeline="mcp_client",
+            )
+            return {"recorded": "success", "result_count": count, "memory": memory.stats()}
+        error = error or "Query returned 0 results"
+        reason = f"Not stored as a success: verification against the endpoint failed ({error})."
+    else:
+        error = arguments.get("error") or "Marked as wrong by the client"
+        count = 0
+        reason = None
+
+    memory.record_failure(
+        question=question,
+        error=error,
+        sparql=sparql,
+        patterns=detected,
+        result_count=count,
+        source_pipeline="mcp_client",
+    )
+    result = {"recorded": "failure", "error": error, "memory": memory.stats()}
+    if reason:
+        result["reason"] = reason
+    return result
 
 
 def handle_search_ontology(

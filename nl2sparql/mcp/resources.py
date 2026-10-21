@@ -101,6 +101,8 @@ def get_server_config(config: "MCPConfig") -> dict[str, Any]:
         "model": config.model or AVAILABLE_PROVIDERS.get(config.provider, {}).get("default_model"),
         "endpoint": config.endpoint,
         "timeout": config.timeout,
+        "translate_enabled": config.translate_enabled,
+        "memory_enabled": config.memory_enabled,
         "available_providers": list(AVAILABLE_PROVIDERS.keys()),
         "provider_models": {
             provider: info.get("models", [])

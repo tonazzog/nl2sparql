@@ -29,6 +29,7 @@ from .tools import (
     handle_fix_case_sensitivity,
     handle_check_variable_reuse,
     handle_fix_service_clause,
+    handle_record_translation,
 )
 from .resources import (
     get_ontology_catalog,
@@ -39,10 +40,55 @@ from .resources import (
 if TYPE_CHECKING:
     from ..retrieval import HybridRetriever, OntologyRetriever
     from ..generation.synthesizer import NL2SPARQL
+    from ..memory import TranslationMemory
 
 
 # Default SPARQL endpoint
 DEFAULT_ENDPOINT = "https://liita.it/sparql"
+
+
+_WORKFLOW_INSTRUCTIONS = """\
+Tools for translating natural language questions (Italian or English) into SPARQL
+for the LiITA linguistic knowledge base.
+
+Building a query yourself: call retrieve_examples for the question, use
+search_ontology / get_constraints as needed, then check the query with
+validate_sparql / execute_sparql and show the user the results."""
+
+_TRANSLATE_INSTRUCTIONS = """
+Alternatively, translate produces a validated query in one call."""
+
+_MEMORY_INSTRUCTIONS = """
+
+Translation memory - this server remembers past translations across sessions:
+- retrieve_examples also returns remembered_examples (queries that answered the
+  same or a near-identical question before - prefer adapting them) and
+  known_failures (past mistakes on similar questions - do not repeat them).
+- Call record_translation only after showing the user results, never
+  mid-attempt, and record at most one success per question:
+  * Success: ask the user in one line whether to save the query to memory, and
+    record it only if they agree (or if they asked you to save automatically).
+    The server can only check that a query runs and returns rows - the user is
+    the judge of whether the rows actually answer the question.
+  * Skip recording if you reused a remembered_examples query unchanged; it is
+    already stored. If you changed it in any way (e.g. a different filter value
+    or suffix), record it - it is a distinct mapping.
+  * Failure: record without asking when the user points out a mistake, or when
+    an executed query turned out conceptually wrong (wrong property direction,
+    graph, or entity). Describe what was wrong in 'error', then record the
+    corrected query as a success once the user confirms it. Do not record
+    syntax slips you fixed immediately."""
+
+
+def _build_instructions(config: "MCPConfig") -> str:
+    """Server instructions sent to the MCP client at initialization: how the
+    tools fit together, including when to write to translation memory."""
+    text = _WORKFLOW_INSTRUCTIONS
+    if config.translate_enabled:
+        text += _TRANSLATE_INSTRUCTIONS
+    if config.memory_enabled:
+        text += _MEMORY_INSTRUCTIONS
+    return text
 
 
 @dataclass
@@ -54,6 +100,11 @@ class MCPConfig:
     endpoint: str = DEFAULT_ENDPOINT
     timeout: int = 30
     api_key: str | None = None
+    memory_path: str | None = None
+    memory_enabled: bool = True
+    # False hides the translate tool - the only tool that calls an LLM provider -
+    # for clients that write SPARQL themselves (e.g. Claude Desktop)
+    translate_enabled: bool = True
 
     @classmethod
     def from_env(cls) -> "MCPConfig":
@@ -63,6 +114,9 @@ class MCPConfig:
             model=os.environ.get("NL2SPARQL_MODEL"),
             endpoint=os.environ.get("NL2SPARQL_ENDPOINT", DEFAULT_ENDPOINT),
             timeout=int(os.environ.get("NL2SPARQL_TIMEOUT", "30")),
+            memory_path=os.environ.get("NL2SPARQL_MEMORY_PATH"),
+            memory_enabled=os.environ.get("NL2SPARQL_MEMORY_ENABLED", "1") != "0",
+            translate_enabled=os.environ.get("NL2SPARQL_TRANSLATE_ENABLED", "1") != "0",
         )
 
 
@@ -89,7 +143,7 @@ class NL2SPARQLMCPServer:
             config: Server configuration. If None, uses defaults from environment.
         """
         self.config = config or MCPConfig.from_env()
-        self.server = Server("nl2sparql")
+        self.server = Server("nl2sparql", instructions=_build_instructions(self.config))
         self._setup_handlers()
 
         # Thread pool for running blocking operations
@@ -99,6 +153,18 @@ class NL2SPARQLMCPServer:
         self._translator: NL2SPARQL | None = None
         self._hybrid_retriever: HybridRetriever | None = None
         self._ontology_retriever: OntologyRetriever | None = None
+        self._memory: TranslationMemory | None = None
+
+    @property
+    def memory(self) -> "TranslationMemory | None":
+        """Lazy-load the persistent translation memory (None if disabled)."""
+        if not self.config.memory_enabled:
+            return None
+        if self._memory is None:
+            from ..memory import TranslationMemory
+
+            self._memory = TranslationMemory(memory_path=self.config.memory_path)
+        return self._memory
 
     @property
     def translator(self) -> "NL2SPARQL":
@@ -115,6 +181,7 @@ class NL2SPARQLMCPServer:
                     fix_errors=True,
                     max_retries=3,
                     endpoint=self.config.endpoint,
+                    memory=self.memory,
                 )
             except ValueError as e:
                 # Re-raise with more context about setting env vars in Claude Desktop
@@ -149,7 +216,7 @@ class NL2SPARQLMCPServer:
 
         @self.server.list_tools()
         async def list_tools() -> list[Tool]:
-            return [
+            tools = [
                 Tool(
                     name="translate",
                     description=(
@@ -202,7 +269,11 @@ class NL2SPARQLMCPServer:
                     description=(
                         "Retrieve similar SPARQL query examples for few-shot learning. "
                         "Uses hybrid retrieval (semantic + BM25 + pattern matching) to find "
-                        "the most relevant examples from a curated dataset."
+                        "the most relevant examples from a curated dataset. When translation "
+                        "memory is enabled, also returns 'remembered_examples' (queries that "
+                        "previously answered the same or a near-identical question - prefer "
+                        "adapting these) and 'known_failures' (past mistakes on similar "
+                        "questions - avoid repeating them)."
                     ),
                     inputSchema={
                         "type": "object",
@@ -395,7 +466,53 @@ class NL2SPARQLMCPServer:
                         "required": ["sparql"],
                     },
                 ),
+                Tool(
+                    name="record_translation",
+                    description=(
+                        "Save the outcome of a translation you built yourself to the persistent "
+                        "translation memory, so future questions benefit from it (see "
+                        "retrieve_examples). Call it only after showing the user results - "
+                        "never mid-attempt - and record at most one success per question. "
+                        "outcome='success': only after the user confirms the results answer "
+                        "the question (ask in one line, e.g. 'Save this query to memory?'), "
+                        "unless they asked you to save automatically. Skip it if you reused a "
+                        "remembered_examples query unchanged - it is already stored; do record "
+                        "it if you changed the query in any way, even just a filter value. "
+                        "outcome='failure' (no need to ask): when the user points out a mistake, "
+                        "or an executed query turned out conceptually wrong (wrong property "
+                        "direction, graph, entity); put what was wrong in 'error', then record "
+                        "the corrected query as a success once confirmed. Do not record syntax "
+                        "slips you fixed immediately. A claimed success is re-executed against "
+                        "the endpoint and only stored as a success if it returns at least one row."
+                    ),
+                    inputSchema={
+                        "type": "object",
+                        "properties": {
+                            "question": {
+                                "type": "string",
+                                "description": "The user's original natural language question",
+                            },
+                            "sparql": {
+                                "type": "string",
+                                "description": "The SPARQL query being recorded",
+                            },
+                            "outcome": {
+                                "type": "string",
+                                "enum": ["success", "failure"],
+                                "description": "Whether the query correctly answers the question",
+                            },
+                            "error": {
+                                "type": "string",
+                                "description": "For failures: what was wrong with the query",
+                            },
+                        },
+                        "required": ["question", "sparql", "outcome"],
+                    },
+                ),
             ]
+            if not self.config.translate_enabled:
+                tools = [t for t in tools if t.name != "translate"]
+            return tools
 
         # ========== TOOL CALLING ==========
 
@@ -462,6 +579,11 @@ class NL2SPARQLMCPServer:
         loop = asyncio.get_event_loop()
 
         if name == "translate":
+            if not self.config.translate_enabled:
+                raise ValueError(
+                    "The translate tool is disabled on this server (--no-translate). "
+                    "Write the SPARQL with retrieve_examples / execute_sparql instead."
+                )
             # Heavy: LLM call + validation - run in thread
             return await loop.run_in_executor(
                 self._executor,
@@ -476,7 +598,7 @@ class NL2SPARQLMCPServer:
             # Heavy: embedding computation - run in thread
             return await loop.run_in_executor(
                 self._executor,
-                partial(handle_retrieve_examples, arguments, self.hybrid_retriever)
+                partial(handle_retrieve_examples, arguments, self.hybrid_retriever, self.memory)
             )
 
         elif name == "search_ontology":
@@ -525,6 +647,19 @@ class NL2SPARQLMCPServer:
         elif name == "fix_service_clause":
             # Light operation
             return handle_fix_service_clause(arguments)
+
+        elif name == "record_translation":
+            # Heavy: verification query + embedding on next lookup - run in thread
+            return await loop.run_in_executor(
+                self._executor,
+                partial(
+                    handle_record_translation,
+                    arguments,
+                    self.memory,
+                    endpoint=self.config.endpoint,
+                    timeout=self.config.timeout,
+                )
+            )
 
         else:
             raise ValueError(f"Unknown tool: {name}")

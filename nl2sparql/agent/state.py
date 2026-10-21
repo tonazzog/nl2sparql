@@ -31,6 +31,10 @@ class NL2SPARQLState(TypedDict):
     retrieved_examples: list[dict]
     relevant_constraints: str
 
+    # Memory: examples remembered from past runs, merged into retrieved_examples
+    # by the retrieve node (kept separate so a seed isn't silently dropped)
+    memory_examples: list[dict]
+
     # Generation
     generated_sparql: str
     generation_attempts: int
@@ -67,8 +71,20 @@ def create_initial_state(
     provider: str = "openai",
     model: str | None = None,
     api_key: str | None = None,
+    seeded_examples: list[dict] | None = None,
+    seeded_failures: list[dict] | None = None,
 ) -> NL2SPARQLState:
-    """Create initial state for a translation request."""
+    """Create initial state for a translation request.
+
+    Args:
+        seeded_examples: Optional examples remembered from past runs (from
+            translation memory), merged into retrieval results by the
+            retrieve node.
+        seeded_failures: Optional past-mistake entries remembered from
+            similar past runs (from translation memory). Pre-populates
+            refinement_history, so generate_sparql's existing "PREVIOUS
+            ATTEMPTS" prompt block renders them with no extra plumbing.
+    """
     return NL2SPARQLState(
         # Input
         question=question,
@@ -89,6 +105,7 @@ def create_initial_state(
         # Retrieval
         retrieved_examples=[],
         relevant_constraints="",
+        memory_examples=seeded_examples or [],
         # Generation
         generated_sparql="",
         generation_attempts=0,
@@ -100,7 +117,7 @@ def create_initial_state(
         is_valid=False,
         validation_errors=[],
         # Refinement
-        refinement_history=[],
+        refinement_history=seeded_failures or [],
         # Schema
         discovered_properties=[],
         schema_context="",

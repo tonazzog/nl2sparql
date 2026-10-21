@@ -20,6 +20,12 @@ PACKAGE_DIR = Path(__file__).parent
 DATA_DIR = PACKAGE_DIR / "data"
 DATASET_PATH = DATA_DIR / "sparql_queries_examples.json"
 
+# Default directory for the persistent translation memory store (writable,
+# outside the installed package tree). Overridable via NL2SPARQL_MEMORY_PATH.
+DEFAULT_MEMORY_PATH = Path(
+    os.environ.get("NL2SPARQL_MEMORY_PATH", str(Path.home() / ".nl2sparql" / "memory"))
+)
+
 
 @dataclass
 class LLMConfig:

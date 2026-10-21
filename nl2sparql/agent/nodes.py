@@ -237,14 +237,28 @@ def retrieve_examples(state: NL2SPARQLState) -> dict[str, Any]:
     # Retrieve examples
     examples = retriever.retrieve(current_query, top_k=5)
 
+    retrieved_examples = [
+        {"nl": ex.example.nl, "sparql": ex.example.sparql, "score": ex.score}
+        for ex in examples
+    ]
+
+    # Merge in examples remembered from past runs (translation memory), if any.
+    # Kept in a separate state field (memory_examples) rather than seeding
+    # retrieved_examples directly, since this node overwrites that field on
+    # every call - merging here is what actually lets a memory hit reach the
+    # generation prompt.
+    if state.get("memory_examples"):
+        retrieved_examples = sorted(
+            retrieved_examples + state["memory_examples"],
+            key=lambda e: e["score"],
+            reverse=True,
+        )[:5]
+
     # Build constraints based on detected patterns
     constraints = get_constraints_for_patterns(state["detected_patterns"])
 
     return {
-        "retrieved_examples": [
-            {"nl": ex.example.nl, "sparql": ex.example.sparql, "score": ex.score}
-            for ex in examples
-        ],
+        "retrieved_examples": retrieved_examples,
         "relevant_constraints": constraints
     }
 

@@ -81,6 +81,17 @@ def main(ctx: click.Context, version: bool):
     help="SPARQL endpoint for validation.",
 )
 @click.option(
+    "--memory-path",
+    type=str,
+    default=None,
+    help="Directory for persistent translation memory (default: ~/.nl2sparql/memory).",
+)
+@click.option(
+    "--no-memory",
+    is_flag=True,
+    help="Disable persistent translation memory for this invocation.",
+)
+@click.option(
     "--verbose", "-V",
     is_flag=True,
     help="Show detailed output.",
@@ -94,6 +105,8 @@ def translate(
     fix: bool,
     max_retries: int,
     endpoint: str,
+    memory_path: Optional[str],
+    no_memory: bool,
     verbose: bool,
 ):
     """
@@ -114,6 +127,12 @@ def translate(
             click.echo(f"Question: {question}")
             click.echo()
 
+        memory = None
+        if not no_memory:
+            from .memory import TranslationMemory
+
+            memory = TranslationMemory(memory_path=memory_path)
+
         # Initialize translator
         translator = NL2SPARQL(
             provider=provider,
@@ -122,6 +141,7 @@ def translate(
             fix_errors=fix,
             max_retries=max_retries,
             endpoint=endpoint,
+            memory=memory,
         )
 
         # Translate
@@ -593,6 +613,17 @@ AGENT_PROVIDERS = ["openai", "anthropic", "mistral", "gemini", "ollama"]
     default=None,
     help="Save query to file.",
 )
+@click.option(
+    "--memory-path",
+    type=str,
+    default=None,
+    help="Directory for persistent translation memory (default: ~/.nl2sparql/memory).",
+)
+@click.option(
+    "--no-memory",
+    is_flag=True,
+    help="Disable persistent translation memory for this invocation.",
+)
 def agent_command(
     question: str,
     provider: str,
@@ -601,6 +632,8 @@ def agent_command(
     verbose: bool,
     stream: bool,
     output: Optional[str],
+    memory_path: Optional[str],
+    no_memory: bool,
 ):
     """
     Translate using the agentic LangGraph workflow.
@@ -635,7 +668,15 @@ def agent_command(
         if model:
             click.echo(f"Model: {model}")
 
-    agent = NL2SPARQLAgent(provider=provider, model=model)
+    memory = None
+    if not no_memory:
+        from .memory import TranslationMemory
+
+        memory = TranslationMemory(memory_path=memory_path)
+        if verbose:
+            click.echo(f"Memory: {memory.stats()}")
+
+    agent = NL2SPARQLAgent(provider=provider, model=model, memory=memory)
 
     if stream:
         click.echo(f"Translating: {question}")
@@ -965,11 +1006,31 @@ MCP_PROVIDERS = ["openai", "anthropic", "mistral", "gemini", "ollama"]
     default=30,
     help="Query timeout in seconds.",
 )
+@click.option(
+    "--memory-path",
+    type=str,
+    default=None,
+    help="Directory for persistent translation memory (default: ~/.nl2sparql/memory).",
+)
+@click.option(
+    "--no-memory",
+    is_flag=True,
+    help="Disable persistent translation memory for this server instance.",
+)
+@click.option(
+    "--no-translate",
+    is_flag=True,
+    help="Hide the translate tool, so the server never calls an LLM provider "
+    "(the MCP client writes SPARQL itself with the other tools).",
+)
 def mcp_serve(
     provider: str,
     model: Optional[str],
     endpoint: Optional[str],
     timeout: int,
+    memory_path: Optional[str],
+    no_memory: bool,
+    no_translate: bool,
 ):
     """
     Start the MCP server with stdio transport.
@@ -998,6 +1059,7 @@ def mcp_serve(
         nl2sparql mcp serve --provider anthropic
         nl2sparql mcp serve --provider ollama --model llama3
         nl2sparql mcp serve --provider openai --model gpt-5.2
+        nl2sparql mcp serve --no-translate   # no LLM calls from the server
     """
     try:
         from .mcp import NL2SPARQLMCPServer
@@ -1019,6 +1081,9 @@ def mcp_serve(
         model=model,
         endpoint=endpoint or LIITA_ENDPOINT,
         timeout=timeout,
+        memory_path=memory_path,
+        memory_enabled=not no_memory,
+        translate_enabled=not no_translate,
     )
 
     # Run server

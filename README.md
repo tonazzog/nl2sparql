@@ -16,7 +16,8 @@ NL2SPARQL translates natural language questions (in Italian or English) into SPA
 - **Auto-Fix**: Automatically fixes case-sensitive filters and detects variable reuse bugs
 - **Bilingual**: Supports questions in both Italian and English
 - **Agentic Mode**: LangGraph-powered agent with self-correction and ontology exploration
-- **MCP Server**: Model Context Protocol server for integration with Claude Desktop and other MCP clients
+- **Translation Memory**: Persistent memory of past translations and mistakes, reused across sessions to bias future queries (never skips validation)
+- **MCP Server**: Model Context Protocol server for integration with Claude Desktop and other MCP clients, including an LLM-free mode where the client writes the SPARQL
 - **Web UI**: Gradio-based web interface for interactive query generation
 - **F1 Evaluation**: Answer-set comparison by executing queries on the LiITA endpoint (precision, recall, F1)
 
@@ -126,6 +127,10 @@ nl2sparql agent "Find all nouns expressing sadness"
 nl2sparql agent -p anthropic "Trova aggettivi con traduzioni siciliane"
 nl2sparql agent --stream "Complex query with step-by-step output"
 nl2sparql agent-viz  # Show workflow diagram
+
+# Translation memory (enabled by default for translate, agent and mcp serve)
+nl2sparql translate --no-memory "Quali lemmi esprimono tristezza?"        # Disable for one run
+nl2sparql agent --memory-path ./my-memory "Trova i meronimi di edificio"  # Use a different store
 ```
 
 ### Python API
@@ -243,6 +248,39 @@ async def main():
 asyncio.run(main())
 ```
 
+#### Translation Memory
+
+Both pipelines can remember past translations across process restarts: successful queries are reused as strong few-shot examples for the same or near-identical questions, and documented mistakes are shown to the LLM as errors to avoid. Memory only **biases** generation - every returned query is still freshly generated and validated against the live endpoint.
+
+```python
+from nl2sparql import NL2SPARQL
+from nl2sparql.agent import NL2SPARQLAgent
+from nl2sparql.memory import TranslationMemory
+
+memory = TranslationMemory()                        # default: ~/.nl2sparql/memory/
+# memory = TranslationMemory(memory_path="./my-memory")
+
+translator = NL2SPARQL(provider="anthropic", memory=memory)
+agent = NL2SPARQLAgent(provider="anthropic", memory=memory)
+
+result = translator.translate("Quali lemmi esprimono tristezza?")  # outcome is recorded
+print(memory.stats())  # {'path': ..., 'examples': 1, 'failures': 0}
+```
+
+How it works:
+
+- **Storage**: two append-only JSONL files, `examples.jsonl` (successes) and `failures.jsonl` (mistakes), in the memory directory. They are plain text, so you can inspect or edit them by hand.
+- **Matching**: an exact match after normalizing the question (case and punctuation), then embedding similarity. Examples must score at least 0.93; failures at least 0.75.
+- **What counts as a success**: the query executed against the endpoint and returned at least one row. Queries that run but return nothing are recorded as failures.
+- **Default**: off in the Python API (`memory=None`), on in the CLI and MCP server. The F1 evaluation scripts never enable it, so reported scores are not affected by memory.
+
+| Environment variable | Effect |
+|----------------------|--------|
+| `NL2SPARQL_MEMORY_PATH` | Memory directory (default `~/.nl2sparql/memory/`) |
+| `NL2SPARQL_MEMORY_ENABLED=0` | Disable memory in the MCP server |
+
+See [docs/translation_memory.md](docs/translation_memory.md) for the design and its rationale.
+
 #### Ontology Retrieval
 
 The agent uses semantic search over an ontology catalog to discover relevant properties and classes. This helps when the LLM needs to find the right vocabulary for a query:
@@ -279,6 +317,13 @@ nl2sparql mcp serve
 nl2sparql mcp serve --provider anthropic
 nl2sparql mcp serve --provider ollama --model llama3
 
+# LLM-free mode: hide the translate tool, so the server never calls an LLM provider
+nl2sparql mcp serve --no-translate
+
+# Translation memory options
+nl2sparql mcp serve --memory-path ./my-memory
+nl2sparql mcp serve --no-memory
+
 # Show configuration
 nl2sparql mcp config
 ```
@@ -292,11 +337,39 @@ Add to your `claude_desktop_config.json`:
   "mcpServers": {
     "nl2sparql": {
       "command": "full path to python.exe in virtual environment",
-      "args": [ "-m", "nl2sparql.mcp", "serve", "--provider", "mistral", "--api-key", "YOUR_KEY" ]
+      "args": [ "-m", "nl2sparql.mcp", "serve", "--provider", "mistral" ],
+      "env": { "MISTRAL_API_KEY": "YOUR_KEY" }
     }
   }
 }
 ```
+
+Put the API key in `env` (using the provider's variable: `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `MISTRAL_API_KEY` or `GEMINI_API_KEY`) rather than passing it with `--api-key` in `args`. Command-line arguments are visible to other processes on the machine (e.g. in Task Manager or `ps`) and tend to end up in logs and screenshots.
+
+**LLM-free mode.** Claude Desktop is already an LLM, so it can write the SPARQL itself using `retrieve_examples`, `search_ontology` and `execute_sparql`. With `--no-translate` the `translate` tool is hidden (and rejected if called), the server never calls an LLM provider, and no API key is needed:
+
+```json
+{
+  "mcpServers": {
+    "nl2sparql": {
+      "command": "full path to python.exe in virtual environment",
+      "args": [ "-m", "nl2sparql.mcp", "serve", "--no-translate" ],
+      "env": { "NL2SPARQL_MEMORY_PATH": "C:\\path\\to\\memory" }
+    }
+  }
+}
+```
+
+The `env` entry is optional and only needed to use a memory directory other than the default. After editing the file, fully quit and reopen Claude Desktop.
+
+#### Translation Memory in MCP Clients
+
+When memory is enabled, the server remembers translations across sessions even when the client writes the SPARQL itself:
+
+- `retrieve_examples` also returns `remembered_examples` (queries that answered the same or a near-identical question before) and `known_failures` (past mistakes on similar questions).
+- `record_translation` lets the client save its final answer. A claimed success is re-executed against the endpoint and stored as a success only if it returns at least one row; otherwise it is stored as a failure with the real error.
+
+The server tells the client when to record, through its MCP instructions and the tool description. Claude asks you before saving a success, because the server can only check that a query runs and returns rows; you judge whether the rows answer the question. It records a failure without asking when you point out a mistake, and it skips recording when it reused a remembered query unchanged. Client behaviour is not enforced by the server, so if Claude saves without asking, tell it to ask first.
 
 #### Available MCP Tools
 
@@ -311,6 +384,7 @@ Add to your `claude_desktop_config.json`:
 | `execute_sparql` | Execute query against LiITA endpoint |
 | `fix_case_sensitivity` | Auto-fix case-sensitive filters |
 | `check_variable_reuse` | Detect variable reuse bugs |
+| `record_translation` | Save a client-built translation (success or failure) to the translation memory |
 
 #### Python API
 
@@ -517,6 +591,11 @@ nl2sparql/
 │   ├── synthesizer.py             # Main NL2SPARQL class
 │   ├── adapters.py                # Query adaptation utilities
 │   └── normalizer.py              # SPARQL variable name normalization
+├── memory/                        # Persistent translation memory
+│   ├── __init__.py                # Public API (TranslationMemory)
+│   ├── store.py                   # Store, lookup and recording logic
+│   ├── records.py                 # Record types and JSONL persistence
+│   └── matching.py                # Question normalization and thresholds
 ├── llm/                           # LLM provider abstraction
 │   ├── __init__.py                # Public API for LLM clients
 │   ├── base.py                    # Abstract client interface

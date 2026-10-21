@@ -1,7 +1,7 @@
 """Main NL2SPARQL synthesizer class."""
 
 from pathlib import Path
-from typing import Optional, Union
+from typing import TYPE_CHECKING, Optional, Union
 
 from .. import (
     QueryExample,
@@ -17,6 +17,9 @@ from ..validation.syntax import validate_syntax
 from ..validation.endpoint import validate_endpoint
 from ..validation.semantic import validate_semantic
 from .adapters import adapt_query, synthesize_query, fix_query
+
+if TYPE_CHECKING:
+    from ..memory import TranslationMemory
 
 
 class NL2SPARQL:
@@ -48,6 +51,7 @@ class NL2SPARQL:
         max_retries: int = 3,
         endpoint: str = LIITA_ENDPOINT,
         cache_system_prompt: bool = False,
+        memory: Optional["TranslationMemory"] = None,
     ):
         """
         Initialize the NL2SPARQL translator.
@@ -65,12 +69,19 @@ class NL2SPARQL:
             endpoint: SPARQL endpoint for validation
             cache_system_prompt: Enable Anthropic prompt caching on the system
                 prompt (Anthropic provider only, ignored otherwise).
+            memory: Optional persistent TranslationMemory. When provided,
+                translate() biases retrieval/generation toward remembered
+                successes and away from remembered mistakes, and records
+                each run's outcome. Off by default so existing callers
+                (including the F1 evaluation harness) are unaffected.
         """
         # Initialize LLM client
         client_kwargs = {}
         if cache_system_prompt:
             client_kwargs["cache_system_prompt"] = True
         self.client = get_client(provider, model, api_key, **client_kwargs)
+        self.provider = provider
+        self.memory = memory
 
         # Initialize retriever
         self.retriever = HybridRetriever(
@@ -121,6 +132,21 @@ class NL2SPARQL:
             top_k=top_k,
         )
 
+        # Step 2b: Bias with remembered examples/mistakes, if memory is enabled.
+        # This never skips generation/validation - a remembered example is just
+        # merged into the candidate pool the existing adapt/synthesize logic
+        # already uses, and a near-exact match naturally pushes best_score over
+        # the adaptation_threshold below.
+        known_failures: list[str] = []
+        if self.memory is not None:
+            memory_examples = self.memory.retrieve_as_examples(question, top_k=2)
+            if memory_examples:
+                retrieved = sorted(
+                    retrieved + memory_examples, key=lambda r: r.score, reverse=True
+                )[:top_k]
+            memory_hit = self.memory.lookup(question, top_k=3)
+            known_failures = [f.error for f, _score in memory_hit.failures]
+
         # Step 3: Decide generation strategy
         exemplars = [r.example for r in retrieved]
         best_score = retrieved[0].score if retrieved else 0.0
@@ -133,6 +159,7 @@ class NL2SPARQL:
                 user_question=question,
                 client=self.client,
                 detected_patterns=detected_patterns,
+                known_failures=known_failures,
             )
         else:
             # Synthesize from multiple examples
@@ -142,6 +169,7 @@ class NL2SPARQL:
                 exemplars=exemplars,
                 client=self.client,
                 detected_patterns=detected_patterns,
+                known_failures=known_failures,
             )
 
         # Step 4: Validate and optionally fix
@@ -158,6 +186,44 @@ class NL2SPARQL:
 
         # Compute confidence
         confidence = self._compute_confidence(retrieved, validation_result)
+
+        # Step 5: Remember the outcome, if memory is enabled
+        # A query only counts as a success if it actually executed against the
+        # endpoint and returned rows - is_valid alone also accepts empty results
+        # and queries whose execution was never checked, and remembering those
+        # would let a wrong query reinforce itself via the adapt path.
+        if self.memory is not None and validation_result is not None:
+            result_count = validation_result.result_count or 0
+            if validation_result.is_valid and validation_result.execution_success and result_count > 0:
+                self.memory.record_success(
+                    question=question,
+                    sparql=sparql,
+                    patterns=inferred_patterns,
+                    confidence=confidence,
+                    result_count=result_count,
+                    source_pipeline="synthesizer",
+                    provider=self.provider,
+                    model=self.client.model,
+                )
+            elif not validation_result.is_valid or validation_result.execution_success:
+                # Either invalid, or executed fine but returned 0 rows.
+                # (Valid but never executed: nothing is known, record nothing.)
+                error = (
+                    validation_result.execution_error
+                    or validation_result.syntax_error
+                    or ("Query returned 0 results" if validation_result.is_valid else "Validation failed")
+                )
+                self.memory.record_failure(
+                    question=question,
+                    error=error,
+                    sparql=sparql,
+                    patterns=detected_patterns,
+                    result_count=result_count,
+                    source_pipeline="synthesizer",
+                    provider=self.provider,
+                    model=self.client.model,
+                    kind="unresolved",
+                )
 
         return TranslationResult(
             question=question,
