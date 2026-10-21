@@ -4,6 +4,7 @@ This module builds prompts by combining the base system prompt with
 relevant constraint sections based on detected query patterns.
 """
 
+import os
 from typing import TYPE_CHECKING
 
 from .base import SPARQL_PREFIXES, SYSTEM_PROMPT, PATTERN_CATEGORIES
@@ -28,6 +29,13 @@ def get_constraints_for_patterns(patterns: list[str]) -> str:
     Returns:
         Concatenated constraint documentation string
     """
+    # Experiment toggle: inject every constraint block regardless of detected
+    # patterns, so a missed or wrong pattern detection can't leave the LLM
+    # without a rule it needs (e.g. the inverted partMeronym direction). Costs
+    # longer prompts and possibly distracting rules. Off by default.
+    if os.getenv("NL2SPARQL_ALL_CONSTRAINTS", "").lower() in ("1", "true", "yes"):
+        patterns = list(PATTERN_CATEGORIES)
+
     # Map patterns to categories
     categories = set()
     for pattern in patterns:
