@@ -6,8 +6,17 @@ from typing import Any, Optional
 
 from .base import LLMClient
 
-# Models that require max_completion_tokens instead of max_tokens
-NEWER_MODELS = {"gpt-5.2", "gpt-5.2-pro", "gpt-5.2-codex", "gpt-5.1", "gpt-5", "gpt-5-mini", "o1", "o1-mini", "o1-preview", "o3", "o3-mini"}
+# Reasoning models spend part of the output budget on thinking: keep a floor.
+REASONING_MIN_TOKENS = 16000
+
+
+def is_openai_reasoning_model(model: str) -> bool:
+    """gpt-5*, gpt-6* and o-series models: default temperature only, max_completion_tokens.
+
+    Matched by prefix, so new releases (gpt-5.6-*, gpt-6-*) are covered without
+    updating a list of names.
+    """
+    return (model or "").lower().startswith(("gpt-5", "gpt-6", "o1", "o3", "o4"))
 
 
 class OpenAIClient(LLMClient):
@@ -36,11 +45,7 @@ class OpenAIClient(LLMClient):
 
     def _uses_max_completion_tokens(self) -> bool:
         """Check if model uses max_completion_tokens instead of max_tokens."""
-        # Check exact match or prefix match for newer models
-        for newer_model in NEWER_MODELS:
-            if self.model == newer_model or self.model.startswith(f"{newer_model}-"):
-                return True
-        return False
+        return is_openai_reasoning_model(self.model)
 
     def complete(
         self,
@@ -62,7 +67,7 @@ class OpenAIClient(LLMClient):
 
         # Use appropriate token limit parameter based on model
         if self._uses_max_completion_tokens():
-            params["max_completion_tokens"] = max_tokens
+            params["max_completion_tokens"] = max(max_tokens, REASONING_MIN_TOKENS)
         else:
             params["max_tokens"] = max_tokens
 
@@ -133,7 +138,7 @@ class OpenAIClient(LLMClient):
 
         # Use appropriate token limit parameter based on model
         if self._uses_max_completion_tokens():
-            params["max_completion_tokens"] = max_tokens
+            params["max_completion_tokens"] = max(max_tokens, REASONING_MIN_TOKENS)
         else:
             params["max_tokens"] = max_tokens
 

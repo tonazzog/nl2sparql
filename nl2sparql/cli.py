@@ -115,7 +115,7 @@ def translate(
     \b
     Examples:
         nl2sparql translate "Quali lemmi esprimono tristezza?"
-        nl2sparql translate -p anthropic -m claude-sonnet-4-20250514 "Trova verbi con gioia"
+        nl2sparql translate -p anthropic -m claude-sonnet-4-6 "Trova verbi con gioia"
         nl2sparql translate "Definizione di casa" -o query.sparql
     """
     from .generation.synthesizer import NL2SPARQL
@@ -649,7 +649,7 @@ def agent_command(
     Examples:
         nl2sparql agent "Find all nouns expressing sadness"
         nl2sparql agent -p anthropic "Trova aggettivi con traduzioni"
-        nl2sparql agent -p openai -m gpt-5.2 "Complex query here"
+        nl2sparql agent -p openai -m gpt-6.1-sol "Complex query here"
         nl2sparql agent --stream "Show step-by-step progress"
     """
     try:
@@ -1057,8 +1057,8 @@ def mcp_serve(
     Examples:
         nl2sparql mcp serve
         nl2sparql mcp serve --provider anthropic
-        nl2sparql mcp serve --provider ollama --model llama3
-        nl2sparql mcp serve --provider openai --model gpt-5.2
+        nl2sparql mcp serve --provider ollama --model llama3.1
+        nl2sparql mcp serve --provider openai --model gpt-6.1-sol
         nl2sparql mcp serve --no-translate   # no LLM calls from the server
     """
     try:

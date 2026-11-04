@@ -66,7 +66,10 @@ class GeminiClient(LLMClient):
         # Generate response
         generation_config = {
             "temperature": temperature,
-            "max_output_tokens": max_tokens,
+            # Gemini 2.5+ think by default and the thinking counts in this budget
+            "max_output_tokens": max(max_tokens, 16000)
+            if self.model.lower().startswith(("gemini-2.5", "gemini-3"))
+            else max_tokens,
         }
 
         response = chat.send_message(

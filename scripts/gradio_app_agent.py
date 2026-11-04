@@ -11,8 +11,8 @@ allowing for dynamic, self-correcting query generation.
 
 Usage:
     python scripts/gradio_app_agent.py
-    python scripts/gradio_app_agent.py --orchestrator-provider anthropic --orchestrator-model claude-3-haiku-20240307
-    python scripts/gradio_app_agent.py --translator-provider mistral --translator-model mistral-large-latest
+    python scripts/gradio_app_agent.py --orchestrator-provider anthropic --orchestrator-model claude-haiku-4-5-20251001
+    python scripts/gradio_app_agent.py --translator-provider mistral --translator-model mistral-large-4-0
 """
 
 import argparse

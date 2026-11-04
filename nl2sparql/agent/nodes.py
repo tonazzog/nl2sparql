@@ -120,12 +120,12 @@ def get_llm(
     """
     # Default models per provider and tier
     DEFAULT_MODELS = {
-        "openai": {"fast": "gpt-5-mini", "default": "gpt-5.2"},
+        "openai": {"fast": "gpt-6-luna", "default": "gpt-6.1-terra"},
         "anthropic": {"fast": "claude-haiku-4-5-20251001", "default": "claude-sonnet-4-6"},
-        "mistral": {"fast": "mistral-small-latest", "default": "mistral-large-latest"},
-        "gemini": {"fast": "gemini-1.5-flash", "default": "gemini-1.5-pro"},
-        "ollama": {"fast": "llama3.2", "default": "llama3.2"},
-        "claudecode": {"fast": "haiku", "default": "claude-sonnet-4-6"},
+        "mistral": {"fast": "mistral-large-4-0", "default": "mistral-large-4-0"},
+        "gemini": {"fast": "gemini-3.5-flash-lite", "default": "gemini-3.6-flash"},
+        "ollama": {"fast": "llama3.1", "default": "llama3.1"},
+        "claudecode": {"fast": "claude-haiku-4-5-20251001", "default": "claude-sonnet-4-6"},
     }
 
     if provider not in DEFAULT_MODELS:
@@ -138,7 +138,12 @@ def get_llm(
     if provider == "openai":
         try:
             from langchain_openai import ChatOpenAI
-            kwargs = {"model": model, "temperature": temperature}
+
+            from ..llm.openai_client import is_openai_reasoning_model
+            kwargs = {"model": model}
+            # Reasoning models (gpt-5*, gpt-6*, o-series) accept only the default temperature
+            if not is_openai_reasoning_model(model):
+                kwargs["temperature"] = temperature
             if api_key:
                 kwargs["api_key"] = api_key
             return ChatOpenAI(**kwargs)

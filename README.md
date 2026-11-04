@@ -157,7 +157,7 @@ from nl2sparql import NL2SPARQL
 # Initialize with specific provider
 translator = NL2SPARQL(
     provider="openai",
-    model="gpt-5.2",
+    model="gpt-6.1-sol",
     validate=True,
     fix_errors=True,
     max_retries=3
@@ -203,7 +203,7 @@ from nl2sparql.agent import NL2SPARQLAgent
 # Initialize with provider and optional API key
 agent = NL2SPARQLAgent(
     provider="openai",       # or "anthropic", "mistral", "gemini", "ollama"
-    model="gpt-5.2",          # optional, uses provider default
+    model="gpt-6.1-sol",          # optional, uses provider default
     api_key="sk-...",        # optional, uses environment variable
 )
 
@@ -315,7 +315,7 @@ nl2sparql mcp serve
 
 # Start with specific provider
 nl2sparql mcp serve --provider anthropic
-nl2sparql mcp serve --provider ollama --model llama3
+nl2sparql mcp serve --provider ollama --model llama3.1
 
 # LLM-free mode: hide the translate tool, so the server never calls an LLM provider
 nl2sparql mcp serve --no-translate
@@ -412,7 +412,7 @@ A Gradio-based web interface for interactive SPARQL query generation. This provi
 python scripts/gradio_app.py
 
 # Start with specific provider
-python scripts/gradio_app.py --provider ollama --model llama3
+python scripts/gradio_app.py --provider ollama --model llama3.1
 python scripts/gradio_app.py --provider anthropic --api-key YOUR_KEY
 
 # Create a public shareable link
@@ -476,8 +476,8 @@ python scripts/gradio_app_agent.py
 
 # Use different providers for orchestrator and translator
 python scripts/gradio_app_agent.py \
-    --orchestrator-provider anthropic --orchestrator-model claude-3-haiku-20240307 \
-    --translator-provider openai --translator-model gpt-5.2
+    --orchestrator-provider anthropic --orchestrator-model claude-haiku-4-5-20251001 \
+    --translator-provider openai --translator-model gpt-6.1-sol
 
 # With explicit API keys
 python scripts/gradio_app_agent.py \
@@ -633,11 +633,11 @@ The system understands LiITA's multi-source architecture:
 
 | Provider | Default Model | Other Models |
 |----------|--------------|--------------|
-| OpenAI | gpt-5-mini | gpt-5.2, gpt-5.2-pro, gpt-5 |
+| OpenAI | gpt-6.1-terra | gpt-6.1-sol, gpt-6-luna |
 | Anthropic | claude-sonnet-4-6 | claude-opus-4-6, claude-haiku-4-5-20251001 |
-| Mistral | mistral-large-latest | mistral-medium-latest, mistral-small-latest |
-| Gemini | gemini-2.5-flash | gemini-2.5-pro, gemini-2.5-flash-lite, gemini-2.0-flash |
-| Ollama | llama3 | mistral, codellama, phi3 |
+| Mistral | mistral-large-4-0 | mistral-medium-latest, mistral-small-latest |
+| Gemini | gemini-3.6-flash | gemini-3.8-flash, gemini-3.5-flash-lite |
+| Ollama | llama3.1 | mistral, codellama, phi3 |
 
 ## Evaluation
 
@@ -711,7 +711,7 @@ save_report(report, "report.json")  # Includes generated SPARQL queries
 
 # Batch model comparison
 configs = [
-    ModelConfig("openai", "gpt-5.2", "GPT-5.2"),
+    ModelConfig("openai", "gpt-6.1-sol", "GPT-6.1 Sol"),
     ModelConfig("anthropic", "claude-sonnet-4-6", "Claude Sonnet 4.6"),
 ]
 results = run_batch_evaluation(configs)

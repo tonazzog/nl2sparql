@@ -31,8 +31,8 @@ DEFAULT_MEMORY_PATH = Path(
 class LLMConfig:
     """Configuration for LLM providers."""
 
-    provider: str = "openai"
-    model: str = "gpt-5-mini"
+    provider: str = "mistral"
+    model: str = "mistral-large-4-0"
     temperature: float = 0.0
     max_tokens: int = 2048
     api_key: Optional[str] = None
@@ -99,29 +99,31 @@ class NL2SPARQLConfig:
 
 # Available LLM providers and their default models
 AVAILABLE_PROVIDERS = {
+    # Defaults are the same in PRISMA, MoSAIC and NL2SPARQL; pinned ids (no
+    # "-latest" aliases) so that results are reproducible.
     "openai": {
-        "default_model": "gpt-5-mini",
-        "models": ["gpt-5.2", "gpt-5.2-pro", "gpt-5", "gpt-5-mini"],
+        "default_model": "gpt-6.1-terra",
+        "models": ["gpt-6.1-terra", "gpt-6.1-sol", "gpt-6-luna", "gpt-5.6-terra"],
     },
     "anthropic": {
         "default_model": "claude-sonnet-4-6",
-        "models": ["claude-opus-4-6", "claude-sonnet-4-6", "claude-haiku-4-5-20251001"],
+        "models": ["claude-sonnet-4-6", "claude-opus-4-6", "claude-haiku-4-5-20251001"],
     },
     "mistral": {
-        "default_model": "mistral-large-latest",
-        "models": ["mistral-large-latest", "mistral-medium-latest", "mistral-small-latest"],
+        "default_model": "mistral-large-4-0",
+        "models": ["mistral-large-4-0", "mistral-medium-latest", "mistral-small-latest"],
     },
     "gemini": {
-        "default_model": "gemini-2.5-flash",
-        "models": ["gemini-2.5-pro", "gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-2.0-flash"],
+        "default_model": "gemini-3.6-flash",
+        "models": ["gemini-3.6-flash", "gemini-3.8-flash", "gemini-3.5-flash-lite"],
     },
     "ollama": {
-        "default_model": "llama3",
-        "models": ["llama3", "mistral", "codellama", "phi3"],
+        "default_model": "llama3.1",
+        "models": ["llama3.1", "mistral", "codellama", "phi3"],
     },
     # Claude through the Claude Code CLI (no API key; uses the local login)
     "claudecode": {
         "default_model": "claude-sonnet-4-6",
-        "models": ["claude-sonnet-4-6", "claude-opus-4-6", "sonnet", "opus", "haiku"],
+        "models": ["claude-sonnet-4-6", "claude-opus-4-6", "claude-haiku-4-5-20251001"],
     },
 }

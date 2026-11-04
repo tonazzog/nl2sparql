@@ -11,7 +11,7 @@ Basic usage:
 
 Advanced usage:
     >>> from nl2sparql import NL2SPARQL
-    >>> translator = NL2SPARQL(provider="anthropic", model="claude-sonnet-4-20250514")
+    >>> translator = NL2SPARQL(provider="anthropic", model="claude-sonnet-4-6")
     >>> result = translator.translate("Trova traduzioni siciliane di casa")
 """
 
@@ -142,7 +142,7 @@ def translate(
         >>> print(result.sparql)
     """
     if model is None:
-        model = AVAILABLE_PROVIDERS.get(provider, {}).get("default_model", "gpt-5-mini")
+        model = AVAILABLE_PROVIDERS.get(provider, {}).get("default_model", "mistral-large-4-0")
 
     NL2SPARQL = _get_translator()
     translator = NL2SPARQL(
