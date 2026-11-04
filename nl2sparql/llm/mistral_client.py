@@ -2,9 +2,48 @@
 
 import json
 import os
+import time
 from typing import Any, Optional
 
 from .base import LLMClient
+
+
+def mistral_text(content) -> str:
+    """Answer text of a Mistral message: a plain string, or the text chunks of a chunk list
+    (reasoning models return [ThinkChunk, TextChunk, ...]; the thinking is discarded).
+    Also accepts LangChain-style dict chunks ({"type": "text", "text": ...})."""
+    if isinstance(content, str):
+        return content.strip()
+    parts = []
+    for ch in content or []:
+        if isinstance(ch, dict):
+            if ch.get("type") == "text":
+                parts.append(ch.get("text", ""))
+        elif getattr(ch, "type", None) == "text":
+            parts.append(getattr(ch, "text", ""))
+    return "".join(parts).strip()
+
+
+def log_mistral_call(model: str, response, seconds: float) -> None:
+    """Append one JSON line per call to $MISTRAL_LOG (if set), with token usage incl. reasoning."""
+    path = os.environ.get("MISTRAL_LOG")
+    if not path:
+        return
+    usage = response.usage
+    details = getattr(usage, "completion_tokens_details", None) or {}
+    reasoning = details.get("reasoning_tokens") if isinstance(details, dict) else getattr(details, "reasoning_tokens", None)
+    record = {
+        "ts": time.strftime("%Y-%m-%dT%H:%M:%S"),
+        "requested_model": model,
+        "model_used": response.model,
+        "prompt_tokens": usage.prompt_tokens,
+        "completion_tokens": usage.completion_tokens,
+        "reasoning_tokens": reasoning,
+        "finish_reason": response.choices[0].finish_reason,
+        "duration_s": round(seconds, 2),
+    }
+    with open(path, "a", encoding="utf-8") as f:
+        f.write(json.dumps(record) + "\n")
 
 
 class MistralClient(LLMClient):
@@ -29,7 +68,12 @@ class MistralClient(LLMClient):
                 "Mistral package not installed. Install with: pip install nl2sparql[mistral]"
             )
 
-        self._client = Mistral(api_key=self.api_key)
+        from mistralai.utils import RetryConfig, BackoffStrategy
+        # Retry rate limits (429) and 5xx with exponential backoff (ms), up to 10 min per call
+        retry = RetryConfig("backoff", BackoffStrategy(2000, 60000, 2.0, 600000), True)
+        self._client = Mistral(api_key=self.api_key, retry_config=retry)
+
+    MIN_MAX_TOKENS = 16000  # floor for reasoning models (thinking counts towards max_tokens)
 
     def complete(
         self,
@@ -38,14 +82,22 @@ class MistralClient(LLMClient):
         max_tokens: int = 2048,
         **kwargs,
     ) -> str:
+        started = time.time()
         response = self._client.chat.complete(
             model=self.model,
             messages=messages,
             temperature=temperature,
-            max_tokens=max_tokens,
+            top_p=1.0,  # required by recent Mistral models with greedy sampling (temperature 0)
+            # Reasoning models (e.g. mistral-large-4) spend part of max_tokens on thinking
+            max_tokens=max(max_tokens, self.MIN_MAX_TOKENS),
             **kwargs,
         )
-        return response.choices[0].message.content
+        log_mistral_call(self.model, response, time.time() - started)
+        choice = response.choices[0]
+        text = mistral_text(choice.message.content)
+        if not text and choice.finish_reason == "length":
+            raise RuntimeError("Mistral response truncated before any answer text (max_tokens reached while reasoning)")
+        return text
 
     def complete_with_tools(
         self,

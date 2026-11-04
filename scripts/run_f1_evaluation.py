@@ -129,7 +129,7 @@ def main():
     parser.add_argument(
         "--provider",
         required=True,
-        help="LLM provider (openai, anthropic, mistral, gemini, ollama)",
+        help="LLM provider (openai, anthropic, mistral, gemini, ollama, claudecode)",
     )
     parser.add_argument(
         "--model",

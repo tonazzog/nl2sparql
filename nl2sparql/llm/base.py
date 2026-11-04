@@ -193,5 +193,9 @@ def get_client(
         from .ollama_client import OllamaClient
         return OllamaClient(model=model, **kwargs)
 
+    elif provider == "claudecode":
+        from .claudecode_client import ClaudeCodeClient
+        return ClaudeCodeClient(model=model, **kwargs)
+
     else:
         raise ValueError(f"Provider '{provider}' not implemented")

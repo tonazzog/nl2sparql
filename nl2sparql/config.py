@@ -119,4 +119,9 @@ AVAILABLE_PROVIDERS = {
         "default_model": "llama3",
         "models": ["llama3", "mistral", "codellama", "phi3"],
     },
+    # Claude through the Claude Code CLI (no API key; uses the local login)
+    "claudecode": {
+        "default_model": "claude-sonnet-4-6",
+        "models": ["claude-sonnet-4-6", "claude-opus-4-6", "sonnet", "opus", "haiku"],
+    },
 }
