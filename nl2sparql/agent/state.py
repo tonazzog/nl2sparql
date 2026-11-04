@@ -18,6 +18,7 @@ class NL2SPARQLState(TypedDict):
 
     # Analysis
     detected_patterns: list[str]
+    rule_patterns: dict[str, float]  # rule-based pattern scores (same detector as the standard pipeline)
     complexity: Literal["simple", "moderate", "complex"]
     requires_service: bool
     requires_translation: bool
@@ -95,6 +96,7 @@ def create_initial_state(
         api_key=api_key,
         # Analysis
         detected_patterns=[],
+        rule_patterns={},
         complexity="simple",
         requires_service=False,
         requires_translation=False,

@@ -10,6 +10,7 @@ def validate_endpoint(
     sparql: str,
     endpoint: str = LIITA_ENDPOINT,
     timeout: int = 30,
+    method: str = "POST",
 ) -> tuple[bool, Optional[str], Optional[int], Optional[list]]:
     """
     Validate a SPARQL query by executing it against an endpoint.
@@ -18,6 +19,8 @@ def validate_endpoint(
         sparql: The SPARQL query to validate
         endpoint: The SPARQL endpoint URL
         timeout: Query timeout in seconds
+        method: "POST" (default), "GET", or "auto" (GET when the URL-encoded
+            query is short enough, as the F1 evaluator does; POST otherwise)
 
     Returns:
         Tuple of (success, error_message, result_count, sample_results)
@@ -27,7 +30,7 @@ def validate_endpoint(
         - sample_results: First few results (up to 5)
     """
     try:
-        from SPARQLWrapper import SPARQLWrapper, JSON, POST, URLENCODED
+        from SPARQLWrapper import SPARQLWrapper, JSON, GET, POST, URLENCODED
     except ImportError:
         raise ImportError(
             "SPARQLWrapper package not installed. Install with: pip install SPARQLWrapper"
@@ -38,9 +41,15 @@ def validate_endpoint(
         client.setQuery(sparql)
         client.setReturnFormat(JSON)
         client.setTimeout(timeout)
-        # Use POST method to avoid URL length limits and encoding issues
-        client.setMethod(POST)
-        client.setRequestMethod(URLENCODED)
+        if method == "auto":
+            from urllib.parse import quote
+            method = "GET" if len(quote(sparql)) <= 6000 else "POST"
+        if method == "GET":
+            client.setMethod(GET)
+        else:
+            # POST avoids URL length limits and encoding issues
+            client.setMethod(POST)
+            client.setRequestMethod(URLENCODED)
         # Explicitly request JSON to avoid HTML error pages
         client.addCustomHttpHeader("Accept", "application/sparql-results+json")
 

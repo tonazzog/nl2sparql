@@ -7,6 +7,97 @@ from typing import Any
 from .state import NL2SPARQLState
 
 
+class _TextContentChat:
+    """Wraps a LangChain chat model so that response.content is always the answer text.
+
+    Reasoning models return content as a list of chunks (thinking + text); the
+    nodes below expect a string, so the thinking chunks are dropped.
+    """
+
+    def __init__(self, llm):
+        self._llm = llm
+
+    def invoke(self, messages, **kwargs):
+        from ..llm.mistral_client import mistral_text
+
+        import time
+
+        # Rate limits (429) and transient 5xx: exponential backoff, up to ~10 minutes in total
+        delay = 2.0
+        for attempt in range(10):
+            try:
+                response = self._llm.invoke(messages, **kwargs)
+                break
+            except Exception as e:  # httpx.HTTPStatusError wrapped by langchain_mistralai
+                msg = str(e)
+                transient = any(code in msg for code in ("429", "500", "502", "503", "504")) or "Rate limit" in msg
+                if not transient or attempt == 9:
+                    raise
+                time.sleep(delay)
+                delay = min(delay * 2, 60.0)
+        if not isinstance(response.content, str):
+            response.content = mistral_text(response.content)
+        _log_langchain_call(response, self._llm)
+        return response
+
+
+def _log_langchain_call(response, llm) -> None:
+    """Append token usage of a LangChain call to $MISTRAL_LOG (same format as the
+    standard client, so the agent's cost can be measured instead of estimated)."""
+    import os
+    import time
+
+    path = os.environ.get("MISTRAL_LOG")
+    if not path:
+        return
+    usage = getattr(response, "usage_metadata", None) or {}
+    meta = getattr(response, "response_metadata", None) or {}
+    token_usage = meta.get("token_usage") or {}
+    details = token_usage.get("completion_tokens_details") or {}
+    record = {
+        "ts": time.strftime("%Y-%m-%dT%H:%M:%S"),
+        "requested_model": getattr(llm, "model", None),
+        "model_used": meta.get("model_name") or meta.get("model"),
+        "prompt_tokens": usage.get("input_tokens"),
+        "completion_tokens": usage.get("output_tokens"),
+        "reasoning_tokens": details.get("reasoning_tokens") if isinstance(details, dict) else None,
+        "finish_reason": meta.get("finish_reason"),
+        "duration_s": None,
+        "source": "agent",
+    }
+    with open(path, "a", encoding="utf-8") as f:
+        f.write(json.dumps(record) + "\n")
+
+
+def _parse_json(content: str):
+    """Parse the first JSON object/array in an LLM answer (tolerates code fences and
+    surrounding prose). Raises ValueError if none can be parsed."""
+    if "```json" in content:
+        content = content.split("```json")[1].split("```")[0]
+    elif "```" in content:
+        content = content.split("```")[1].split("```")[0]
+    content = content.strip()
+    try:
+        return json.loads(content)
+    except json.JSONDecodeError:
+        pass
+    decoder = json.JSONDecoder()
+    for i, ch in enumerate(content):
+        if ch in "{[":
+            try:
+                return decoder.raw_decode(content[i:])[0]
+            except json.JSONDecodeError:
+                continue
+    raise ValueError("no JSON found in LLM answer")
+
+
+# Patterns whose data live in CompL-it (queried through SERVICE): senses and sense
+# inventories, definitions, semantic and lexical relations.
+SERVICE_PATTERNS = {
+    "SENSE_DEFINITION", "SENSE_COUNT", "SEMANTIC_RELATION", "LEXICAL_RELATION", "SERVICE_INTEGRATION",
+}
+
+
 def get_llm(
     provider: str = "openai",
     model: str | None = None,
@@ -34,6 +125,7 @@ def get_llm(
         "mistral": {"fast": "mistral-small-latest", "default": "mistral-large-latest"},
         "gemini": {"fast": "gemini-1.5-flash", "default": "gemini-1.5-pro"},
         "ollama": {"fast": "llama3.2", "default": "llama3.2"},
+        "claudecode": {"fast": "haiku", "default": "claude-sonnet-4-6"},
     }
 
     if provider not in DEFAULT_MODELS:
@@ -66,10 +158,12 @@ def get_llm(
     elif provider == "mistral":
         try:
             from langchain_mistralai import ChatMistralAI
-            kwargs = {"model": model, "temperature": temperature}
+            # top_p=1 is required with greedy sampling; reasoning calls can take minutes
+            kwargs = {"model": model, "temperature": temperature, "top_p": 1.0, "timeout": 600}
             if api_key:
                 kwargs["api_key"] = api_key
-            return ChatMistralAI(**kwargs)
+            # Reasoning models (e.g. mistral-large-4) return content as a list of chunks
+            return _TextContentChat(ChatMistralAI(**kwargs))
         except ImportError:
             raise ImportError("langchain-mistralai required. Install with: pip install langchain-mistralai")
 
@@ -90,6 +184,11 @@ def get_llm(
             return ChatOllama(model=model, temperature=temperature)
         except ImportError:
             raise ImportError("langchain-ollama required. Install with: pip install langchain-ollama")
+
+    elif provider == "claudecode":
+        # Claude Code CLI; temperature is not exposed by the CLI and is ignored
+        from ..llm.claudecode_client import ClaudeCodeChat
+        return ClaudeCodeChat(model=model)
 
 
 def analyze_question(state: NL2SPARQLState) -> dict[str, Any]:
@@ -125,8 +224,8 @@ Determine:
 
 2. complexity: "simple" (1 pattern), "moderate" (2 patterns), "complex" (3+ patterns or multi-dialect)
 
-3. requires_service: true ONLY if needs CompL-it data (definitions, semantic relations, synonyms)
-   - TRUE for: definitions, hypernyms, hyponyms, meronyms, synonyms, antonyms
+3. requires_service: true ONLY if needs CompL-it data (senses, definitions, semantic relations, synonyms)
+   - TRUE for: senses and number of senses (polysemy), definitions, hypernyms, hyponyms, meronyms, synonyms, antonyms
    - FALSE for: emotions (ELITA), translations (dialects), POS filters, morphology, Latin
 
 4. requires_translation: true if needs dialect translations
@@ -141,30 +240,40 @@ Respond in JSON format only:
         HumanMessage(content=analysis_prompt)
     ])
 
-    try:
-        # Extract JSON from response
-        content = response.content
-        # Handle markdown code blocks
-        if "```json" in content:
-            content = content.split("```json")[1].split("```")[0]
-        elif "```" in content:
-            content = content.split("```")[1].split("```")[0]
+    # Rule-based pattern detection, the same used by the standard pipeline. It is
+    # combined with the LLM analysis so that one misclassification by the LLM
+    # cannot remove a pattern (and its constraints) from the rest of the run.
+    from ..retrieval.patterns import infer_patterns, get_top_patterns
 
-        analysis = json.loads(content.strip())
-    except (json.JSONDecodeError, IndexError):
-        # Fallback to basic analysis
+    rule_patterns = infer_patterns(state["question"])
+    rule_top = get_top_patterns(rule_patterns, top_k=5)
+
+    try:
+        analysis = _parse_json(response.content)
+        if not isinstance(analysis, dict):
+            raise ValueError("analysis is not a JSON object")
+    except ValueError:
+        # Fallback: rule-based analysis (not a fixed guess)
         analysis = {
-            "patterns": ["POS_FILTER"],
-            "complexity": "simple",
+            "patterns": rule_top,
+            "complexity": "simple" if len(rule_top) <= 1 else "moderate",
             "requires_service": False,
-            "requires_translation": False,
-            "dialects": []
+            "requires_translation": any(p in ("TRANSLATION", "MULTI_TRANSLATION") for p in rule_top),
+            "dialects": [],
         }
 
+    llm_patterns = [p for p in analysis.get("patterns", []) if isinstance(p, str)]
+    detected = list(dict.fromkeys(llm_patterns + rule_top))
+    # SERVICE is suggested if either the LLM or a CompL-it pattern says so
+    requires_service = bool(analysis.get("requires_service", False)) or any(
+        p in SERVICE_PATTERNS for p in detected
+    )
+
     return {
-        "detected_patterns": analysis.get("patterns", []),
+        "detected_patterns": detected,
+        "rule_patterns": rule_patterns,
         "complexity": analysis.get("complexity", "simple"),
-        "requires_service": analysis.get("requires_service", False),
+        "requires_service": requires_service,
         "requires_translation": analysis.get("requires_translation", False),
         "dialects_needed": analysis.get("dialects", []),
     }
@@ -206,13 +315,11 @@ Return as JSON array of step descriptions:
     response = llm.invoke([HumanMessage(content=planning_prompt)])
 
     try:
-        content = response.content
-        if "```json" in content:
-            content = content.split("```json")[1].split("```")[0]
-        elif "```" in content:
-            content = content.split("```")[1].split("```")[0]
-        sub_tasks = json.loads(content.strip())
-    except (json.JSONDecodeError, IndexError):
+        sub_tasks = _parse_json(response.content)
+        if not isinstance(sub_tasks, list) or not sub_tasks:
+            raise ValueError("plan is not a JSON array")
+        sub_tasks = [str(s) for s in sub_tasks]
+    except ValueError:
         sub_tasks = [state["question"]]
 
     return {
@@ -221,24 +328,46 @@ Return as JSON array of step descriptions:
     }
 
 
+# Retrievers load a sentence-transformer model and embed the whole example/ontology
+# set, so they are built once per process and reused (as the MCP server does).
+# Re-creating them on every node call leaked hundreds of MB per question.
+_RETRIEVERS: dict[str, Any] = {}
+
+
+def _get_retriever(kind: str):
+    if kind not in _RETRIEVERS:
+        if kind == "hybrid":
+            from ..retrieval.hybrid_retriever import HybridRetriever
+            _RETRIEVERS[kind] = HybridRetriever()
+        else:
+            from ..retrieval.ontology_retriever import OntologyRetriever
+            _RETRIEVERS[kind] = OntologyRetriever()
+    return _RETRIEVERS[kind]
+
+
 def retrieve_examples(state: NL2SPARQLState) -> dict[str, Any]:
     """Retrieve relevant examples and constraints."""
-    from ..retrieval.hybrid_retriever import HybridRetriever
     from ..constraints.prompt_builder import get_constraints_for_patterns
 
-    retriever = HybridRetriever()
+    retriever = _get_retriever("hybrid")
 
-    # Get current sub-task or full question
-    current_query = state["question"]
-    if state["sub_tasks"]:
-        idx = min(state["current_task_index"], len(state["sub_tasks"]) - 1)
-        current_query = state["sub_tasks"][idx]
-
-    # Retrieve examples
-    examples = retriever.retrieve(current_query, top_k=5)
+    # Retrieve on the question itself, with the rule-based pattern scores, exactly as
+    # the standard pipeline does. (Retrieving on the first plan step, as before,
+    # matched examples against a paraphrase like "Query CompL-it SERVICE for ...".)
+    examples = retriever.retrieve(
+        query=state["question"],
+        user_patterns=state.get("rule_patterns") or None,
+        top_k=5,
+    )
 
     retrieved_examples = [
-        {"nl": ex.example.nl, "sparql": ex.example.sparql, "score": ex.score}
+        {
+            "nl": ex.example.nl,
+            "sparql": ex.example.sparql,
+            "score": ex.score,
+            "patterns": dict(ex.example.patterns or {}),
+            "nl_variants": dict(ex.example.nl_variants or {}),
+        }
         for ex in examples
     ]
 
@@ -264,10 +393,20 @@ def retrieve_examples(state: NL2SPARQLState) -> dict[str, Any]:
 
 
 def generate_sparql(state: NL2SPARQLState) -> dict[str, Any]:
-    """Generate SPARQL query using LLM."""
+    """Generate a SPARQL query with the LLM.
+
+    The prompt is the standard pipeline's synthesis prompt (same system prompt,
+    constraints, prefixes and few-shot examples), extended with what only the agent
+    has: a soft hint about CompL-it, the plan, schema found by exploration and the
+    previous failed attempts. The agent therefore differs from the standard
+    pipeline only by its execute-verify-refine loop.
+    """
+    from types import SimpleNamespace
+
     from langchain_core.messages import HumanMessage, SystemMessage
 
-    # Use default tier for generation (more capable model)
+    from ..constraints.prompt_builder import build_synthesis_prompt
+
     llm = get_llm(
         provider=state["provider"],
         model=state["model"],
@@ -275,128 +414,79 @@ def generate_sparql(state: NL2SPARQLState) -> dict[str, Any]:
         api_key=state["api_key"],
     )
 
-    # Build refinement context from history
-    refinement_context = ""
-    if state["refinement_history"]:
-        refinement_context = "\n\n## PREVIOUS ATTEMPTS (learn from these errors!):\n"
-        for i, attempt in enumerate(state["refinement_history"][-3:], 1):
-            refinement_context += f"\n### Attempt {i}:\n"
-            refinement_context += f"Query:\n```sparql\n{attempt.get('sparql', 'N/A')[:500]}\n```\n"
-            refinement_context += f"Error: {attempt.get('error', 'Unknown')}\n"
-            refinement_context += f"Results: {attempt.get('result_count', 0)}\n"
+    exemplars = [
+        SimpleNamespace(
+            nl=ex["nl"],
+            sparql=ex["sparql"],
+            patterns=ex.get("patterns") or {},
+            nl_variants=ex.get("nl_variants") or {},
+        )
+        for ex in state["retrieved_examples"][:5]
+    ]
 
-    # Build examples text
-    examples_text = ""
-    for ex in state["retrieved_examples"][:3]:
-        examples_text += f"\n### Example:\nQuestion: {ex['nl']}\n```sparql\n{ex['sparql']}\n```\n"
-
-    # Include discovered schema if available (from ontology retrieval)
+    # Schema discovered by ontology exploration (system prompt, as in the standard pipeline)
     schema_context = ""
     if state.get("schema_context"):
-        # Use detailed ontology descriptions (preferred)
-        schema_context = f"\n\n{state['schema_context']}"
+        schema_context = state["schema_context"]
     elif state["discovered_properties"]:
-        # Fallback to just URIs
-        schema_context = f"\n\n## Discovered Properties:\n{', '.join(state['discovered_properties'][:20])}"
+        schema_context = "## Discovered Properties:\n" + ", ".join(state["discovered_properties"][:20])
 
-    # Explicit SERVICE instruction based on requires_service flag
+    system_prompt, user_prompt = build_synthesis_prompt(
+        user_question=state["question"],
+        exemplars=exemplars,
+        detected_patterns=state["detected_patterns"],
+        schema_context=schema_context,
+    )
+
+    # --- agent-specific context, appended after the standard task description ---
+    extra = []
+
+    # Soft hint (never a prohibition): the examples and constraints above can override it
     if state["requires_service"]:
-        service_instruction = """- This query REQUIRES a SERVICE block to query CompL-it
-- Use: SERVICE <https://klab.ilc.cnr.it/graphdb-compl-it/> { ... }"""
+        extra.append(
+            "## HINT ON DATA SOURCES:\n"
+            "This question most likely needs CompL-it data (senses, number of senses, definitions, "
+            "semantic or lexical relations). CompL-it is queried with "
+            "SERVICE <https://klab.ilc.cnr.it/graphdb-compl-it/> { ... }."
+        )
     else:
-        service_instruction = """- DO NOT use any SERVICE block for this query
-- All data needed is in the main LiITA graphs (no external federation needed)"""
+        extra.append(
+            "## HINT ON DATA SOURCES:\n"
+            "This question can probably be answered from the LiITA graphs alone. Use a SERVICE block "
+            "for CompL-it only if the examples or constraints above show that it is needed."
+        )
 
-    generation_prompt = f"""Generate a SPARQL query for the LiITA knowledge base.
+    if state["dialects_needed"]:
+        extra.append(f"## DIALECTS NEEDED:\n{', '.join(map(str, state['dialects_needed']))}")
 
-## CRITICAL CONSTRAINTS
-{state["relevant_constraints"]}
+    sub_tasks = state.get("sub_tasks") or []
+    if len(sub_tasks) > 1:
+        steps = "\n".join(f"{i}. {s}" for i, s in enumerate(sub_tasks, 1))
+        extra.append(f"## SUGGESTED PLAN:\n{steps}")
 
-## Similar Examples
-{examples_text}
-{schema_context}
-{refinement_context}
+    own_attempts = state["refinement_history"][-3:]
+    if own_attempts:
+        lines = ["## PREVIOUS ATTEMPTS (they failed - do not repeat them, fix the cause):"]
+        for i, attempt in enumerate(own_attempts, 1):
+            lines.append(f"\n### Attempt {i}:")
+            lines.append(f"```sparql\n{attempt.get('sparql', 'N/A')}\n```")
+            lines.append(f"Problem: {attempt.get('error', 'Unknown')}")
+            lines.append(f"Rows returned: {attempt.get('result_count', 0)}")
+        extra.append("\n".join(lines))
 
-## Question to translate:
-{state["question"]}
-
-## Requirements:
-- Patterns needed: {state["detected_patterns"]}
-- Dialects: {state["dialects_needed"]}
-
-## SERVICE BLOCK INSTRUCTION:
-{service_instruction}
-
-Generate ONLY the complete SPARQL query. No explanations."""
-
-    system_prompt = """You are an expert SPARQL query generator for the LiITA linguistic knowledge base.
-
-MANDATORY PREFIXES (use these EXACT URIs - do NOT modify them):
-PREFIX dct: <http://purl.org/dc/terms/>
-PREFIX dcterms: <http://purl.org/dc/terms/>
-PREFIX elita: <http://w3id.org/elita/>
-PREFIX lexinfo: <http://www.lexinfo.net/ontology/3.0/lexinfo#>
-PREFIX lila: <http://lila-erc.eu/ontologies/lila/>
-PREFIX lime: <http://www.w3.org/ns/lemon/lime#>
-PREFIX marl: <http://www.gsi.upm.es/ontologies/marl/ns#>
-PREFIX ontolex: <http://www.w3.org/ns/lemon/ontolex#>
-PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
-PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
-PREFIX skos: <http://www.w3.org/2004/02/skos/core#>
-PREFIX vartrans: <http://www.w3.org/ns/lemon/vartrans#>
-PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
-
-CRITICAL: Copy the prefixes EXACTLY as shown above. Common mistakes to AVOID:
-- elita: must be <http://w3id.org/elita/> NOT <http://w3id.org/elita/ontology#>
-- marl: must be <http://www.gsi.upm.es/ontologies/marl/ns#> NOT <http://www.w3.org/ns/marl#>
-
-CRITICAL RULES:
-1. Translation direction is ALWAYS Italian → Dialect (never dialect → Italian)
-2. For multi-dialect queries, use DIFFERENT Italian lexical entry variables for each dialect
-3. Use dcterms:isPartOf with LemmaBank URI to identify dialect lemmas (NO GRAPH clauses)
-4. Never reuse a variable for both a URI and a literal value
-5. Variables bound in SERVICE can be used outside, but NOT vice versa
-
-SERVICE BLOCK RULES (VERY IMPORTANT):
-6. Only use SERVICE block when querying CompL-it for definitions or semantic relations
-7. The ONLY valid SERVICE endpoint is: SERVICE <https://klab.ilc.cnr.it/graphdb-compl-it/>
-8. NEVER use localhost, made-up URLs, or any other SERVICE endpoints
-9. For EMOTION queries (ELITA), do NOT use SERVICE - emotions are in GRAPH <http://w3id.org/elita>
-10. For TRANSLATION queries (dialects), do NOT use SERVICE - translations are in the main LiITA data
-
-LINKING LIITA TO COMPL-IT (CRITICAL):
-11. When starting from a LiITA lemma and needing CompL-it data (definitions, semantic relations):
-    - Use the SAME variable name (?writtenRep) in both GRAPH and SERVICE blocks
-    - The shared variable creates a NATURAL JOIN - no FILTER needed
-    - NEVER use FILTER(STR(?x) = STR(?y)) to compare variables across SERVICE boundaries
-
-    CORRECT pattern:
-    GRAPH <http://liita.it/data> {
-        ?lemma a lila:Lemma ; ontolex:writtenRep ?writtenRep .
-    }
-    SERVICE <https://klab.ilc.cnr.it/graphdb-compl-it/> {
-        ?word ontolex:canonicalForm [ ontolex:writtenRep ?writtenRep ] ;
-              ontolex:sense [ skos:definition ?definition ] .
-    }
-
-    WRONG - causes "variable not assigned" error:
-    GRAPH <http://liita.it/data> {
-        ?lemma a lila:Lemma ; ontolex:writtenRep ?lilaRep .
-    }
-    SERVICE <https://klab.ilc.cnr.it/graphdb-compl-it/> {
-        ?word ontolex:canonicalForm [ ontolex:writtenRep ?complRep ] .
-        FILTER(STR(?complRep) = STR(?lilaRep))  # ERROR: ?lilaRep not visible inside SERVICE!
-    }"""
+    if extra:
+        user_prompt = user_prompt.rstrip()
+        marker = "**SPARQL Query**:"
+        if user_prompt.endswith(marker):
+            user_prompt = user_prompt[: -len(marker)].rstrip()
+        user_prompt += "\n\n" + "\n\n".join(extra) + "\n\n" + marker + "\n"
 
     response = llm.invoke([
         SystemMessage(content=system_prompt),
-        HumanMessage(content=generation_prompt)
+        HumanMessage(content=user_prompt),
     ])
 
-    # Extract SPARQL from response
     sparql = response.content.strip()
-
-    # Remove markdown code blocks if present
     if "```sparql" in sparql:
         sparql = sparql.split("```sparql")[1].split("```")[0].strip()
     elif "```" in sparql:
@@ -404,7 +494,7 @@ LINKING LIITA TO COMPL-IT (CRITICAL):
 
     return {
         "generated_sparql": sparql,
-        "generation_attempts": state.get("generation_attempts", 0) + 1
+        "generation_attempts": state.get("generation_attempts", 0) + 1,
     }
 
 
@@ -480,105 +570,75 @@ def _fix_case_sensitive_filters(sparql: str) -> tuple[str, bool]:
     return sparql, modified
 
 
-def _fix_service_clause(sparql: str) -> tuple[str, bool]:
-    """Remove SERVICE clause wrapper while keeping its content.
-
-    Some endpoints (like Virtuoso) may return permission errors when using
-    federated SERVICE queries. This fix removes the SERVICE wrapper and keeps
-    the triple patterns inside, making them execute against the local endpoint.
-
-    Example:
-        SERVICE <https://klab.ilc.cnr.it/graphdb-compl-it/> {
-            ?word ontolex:canonicalForm [ ontolex:writtenRep ?wr ] .
-            FILTER(STR(?wr) = "coniglio")
-        }
-
-    Becomes:
-        ?word ontolex:canonicalForm [ ontolex:writtenRep ?wr ] .
-        FILTER(STR(?wr) = "coniglio")
-
-    Returns:
-        tuple: (fixed_sparql, was_modified)
-    """
-    # Find SERVICE blocks with their content
-    # Pattern: SERVICE <uri> { ... }
-    service_pattern = r'SERVICE\s*<[^>]+>\s*\{'
-
-    match = re.search(service_pattern, sparql, re.IGNORECASE)
-    if not match:
-        return sparql, False
-
-    # Find the matching closing brace for the SERVICE block
-    start_pos = match.end() - 1  # Position of opening brace
-    brace_count = 1
-    pos = start_pos + 1
-
-    while pos < len(sparql) and brace_count > 0:
-        if sparql[pos] == '{':
-            brace_count += 1
-        elif sparql[pos] == '}':
-            brace_count -= 1
-        pos += 1
-
-    if brace_count != 0:
-        # Unbalanced braces, can't safely fix
-        return sparql, False
-
-    end_pos = pos - 1  # Position of closing brace
-
-    # Extract content inside SERVICE block
-    service_content = sparql[start_pos + 1:end_pos].strip()
-
-    # Remove the SERVICE block and replace with its content
-    # We need to preserve proper spacing/newlines
-    before_service = sparql[:match.start()].rstrip()
-    after_service = sparql[end_pos + 1:].lstrip()
-
-    # Reconstruct the query with proper formatting
-    # If before ends with '{', add newline + indentation
-    if before_service.endswith('{'):
-        fixed_sparql = before_service + '\n  ' + service_content
-    else:
-        fixed_sparql = before_service + '\n' + service_content
-
-    if after_service:
-        fixed_sparql += '\n' + after_service
-
-    return fixed_sparql, True
-
-
 def is_service_error(error_message: str) -> bool:
-    """Check if an error message indicates a SERVICE clause problem.
+    """True if the endpoint refused a federated SERVICE call (a permission problem).
 
-    Args:
-        error_message: The error message from query execution
-
-    Returns:
-        True if the error is related to SERVICE clause issues
+    Only permission-type errors are matched. Timeouts and 5xx are transient and are
+    retried as they are (see _is_transient_error); query-shape errors that merely
+    mention "service" (e.g. Virtuoso SP031) are left to the refinement loop.
     """
     if not error_message:
         return False
-
     error_lower = error_message.lower()
-    service_error_indicators = [
-        'service',
-        'sparul',
-        'load service data',
-        'access denied',
-        'permission',
-        'federat',
-        'remote endpoint',
-        'connection refused',
-        'timeout',  # SERVICE queries can timeout
-        'sr619',    # Virtuoso error code
+    indicators = [
+        "sr186",          # Virtuoso: No permission to execute procedure (e.g. SPARQL_SD_PROBE)
+        "sr619",          # Virtuoso: SPARUL LOAD SERVICE DATA access denied
+        "load service data",
+        "access denied",
+        "no permission",
+        "permission denied",
     ]
+    return any(indicator in error_lower for indicator in indicators)
 
-    return any(indicator in error_lower for indicator in service_error_indicators)
+
+def _is_transient_error(error_message: str) -> bool:
+    """True for errors worth retrying unchanged (timeouts, gateway errors, connection drops)."""
+    if not error_message:
+        return False
+    error_lower = error_message.lower()
+    return any(s in error_lower for s in (
+        "timeout", "timed out", "502", "503", "504", "bad gateway", "service unavailable",
+        "connection error", "connection reset", "connection aborted", "temporarily",
+    ))
+
+
+_AGGREGATE_RE = re.compile(r"\b(COUNT|SUM)\s*\(", re.IGNORECASE)
+
+
+def _effective_count(sparql: str, count: int | None, sample: list | None) -> int:
+    """Row count, except that a single row whose numeric values are all 0 from a
+    COUNT/SUM query counts as an empty answer (a count of 0 is still one row)."""
+    count = count or 0
+    if count == 1 and sample and _AGGREGATE_RE.search(sparql):
+        numeric = []
+        for value in sample[0].values():
+            try:
+                numeric.append(float(value))
+            except (TypeError, ValueError):
+                continue
+        if numeric and all(v == 0 for v in numeric):
+            return 0
+    return count
+
+
+def _run_on_endpoint(sparql: str):
+    """Execute on the endpoint (GET for normal-size queries, like the evaluator),
+    retrying transient failures twice."""
+    import time
+
+    from ..validation.endpoint import validate_endpoint
+
+    success, error, count, results = validate_endpoint(sparql, timeout=30, method="auto")
+    for delay in (5, 15):
+        if not (error and _is_transient_error(error)):
+            break
+        time.sleep(delay)
+        success, error, count, results = validate_endpoint(sparql, timeout=30, method="auto")
+    return success, error, count, results
 
 
 def execute_query(state: NL2SPARQLState) -> dict[str, Any]:
     """Execute the SPARQL query against the endpoint."""
-    from ..validation.endpoint import validate_endpoint
     from ..validation.syntax import validate_syntax
 
     sparql = state["generated_sparql"]
@@ -602,41 +662,36 @@ def execute_query(state: NL2SPARQLState) -> dict[str, Any]:
             "execution_error": f"Syntax error: {syntax_error}"
         }
 
-    # Execute against endpoint
-    success, error, count, results = validate_endpoint(sparql, timeout=30)
+    success, error, count, results = _run_on_endpoint(sparql)
 
-    # If SERVICE error, try removing SERVICE clause and execute locally
-    # This handles Virtuoso permission errors like "SPARUL LOAD SERVICE DATA access denied"
+    # The endpoint refused the federated call. Removing the SERVICE block would only
+    # query LiITA, which does not contain CompL-it's senses, definitions and
+    # relations, so such a result is never accepted: the error goes back to the
+    # refinement loop instead.
     if error and is_service_error(error):
-        fixed_sparql, was_fixed = _fix_service_clause(sparql)
-        if was_fixed:
-            # Re-execute without SERVICE clause
-            success2, error2, count2, results2 = validate_endpoint(fixed_sparql, timeout=30)
-            if success2 and not error2:
-                # The fix worked! Update the generated query and return new results
-                return {
-                    "execution_result": results2,
-                    "result_count": count2 or 0,
-                    "execution_error": None,
-                    # Update the generated_sparql with the fixed version
-                    "generated_sparql": fixed_sparql,
-                }
-            # If fix didn't work, fall through to return original error
+        return {
+            "execution_result": None,
+            "result_count": 0,
+            "execution_error": (
+                f"Endpoint error: the federated SERVICE call to CompL-it was refused ({error[:300]}). "
+                "Do not drop the SERVICE block (CompL-it data are not in LiITA); restructure the query instead."
+            ),
+        }
+
+    count = _effective_count(sparql, count, results) if success and not error else count
 
     # If no results and no error, try fixing case-sensitive filters
     # This handles cases like "rabbia" vs "Rabbia" without regenerating the whole query
-    if success and (count is None or count == 0) and not error:
+    if success and not error and not count:
         fixed_sparql, was_fixed = _fix_case_sensitive_filters(sparql)
         if was_fixed:
-            # Re-execute with case-insensitive filters
-            success2, error2, count2, results2 = validate_endpoint(fixed_sparql, timeout=30)
-            if success2 and count2 and count2 > 0:
-                # The fix worked! Update the generated query and return new results
+            success2, error2, count2, results2 = _run_on_endpoint(fixed_sparql)
+            count2 = _effective_count(fixed_sparql, count2, results2) if success2 and not error2 else 0
+            if success2 and count2 > 0:
                 return {
                     "execution_result": results2,
                     "result_count": count2,
                     "execution_error": None,
-                    # Update the generated_sparql with the fixed version
                     "generated_sparql": fixed_sparql,
                 }
 
@@ -679,7 +734,7 @@ def verify_results(state: NL2SPARQLState) -> dict[str, Any]:
     # Zero results (after minor fixes in execute_query) should trigger explore/refine
     # But we still consider the query "syntactically valid" for fallback purposes
     if state["result_count"] == 0 and not has_technical_error:
-        validation_errors.append("Query returned 0 results - will try explore/refine")
+        validation_errors.append("Query returned no results (or only a zero count) - will try explore/refine")
 
     is_valid = len(validation_errors) == 0
 
@@ -736,10 +791,8 @@ def explore_schema(state: NL2SPARQLState) -> dict[str, Any]:
     - Domain/range information (how to use them)
     - SPARQL usage examples
     """
-    from ..retrieval.ontology_retriever import OntologyRetriever
-
     try:
-        retriever = OntologyRetriever()
+        retriever = _get_retriever("ontology")
 
         # Retrieve properties and classes relevant to the question
         # Focus on properties since they're most important for query construction
