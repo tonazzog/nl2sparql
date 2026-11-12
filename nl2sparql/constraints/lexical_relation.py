@@ -126,9 +126,10 @@ SERVICE <https://klab.ilc.cnr.it/graphdb-compl-it/> {
 ?synonymWord ontolex:canonicalForm ?italianLemma .
 
 GRAPH <http://liita.it/data> {
-    ?italianLemma a lila:Lemma ;
+    ?italianLemma a ?italianLemmaType ;
                   lila:hasPOS ?pos ;
                   ontolex:writtenRep ?synonymWrittenRep .
+    FILTER(?italianLemmaType IN (lila:Lemma, lila:Hypolemma))
 }
 ```
 

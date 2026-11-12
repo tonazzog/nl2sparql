@@ -246,9 +246,10 @@ When you need to filter by text pattern (REGEX) AND get definitions, you MUST:
 ```sparql
 # WRONG - This will fail!
 GRAPH <http://liita.it/data> {
-    ?lemma a lila:Lemma ;
+    ?lemma a ?lemmaType ;
            lila:hasPOS lila:noun ;
            ontolex:writtenRep ?wr .
+    FILTER(?lemmaType IN (lila:Lemma, lila:Hypolemma))
     FILTER(REGEX(STR(?wr), "zione$"))
 }
 
@@ -294,9 +295,10 @@ When you START with a LiITA lemma and need definitions from CompL-it, use the SA
 ```sparql
 # WRONG - This will cause error: "Variable 'writtenRep' is used but not assigned"
 GRAPH <http://liita.it/data> {
-    ?lemma a lila:Lemma ;
+    ?lemma a ?lemmaType ;
            lila:hasPOS lila:noun ;
            ontolex:writtenRep ?writtenRep .
+    FILTER(?lemmaType IN (lila:Lemma, lila:Hypolemma))
     FILTER(REGEX(STR(?writtenRep), "etto$"))
 }
 
@@ -311,9 +313,10 @@ SERVICE <https://klab.ilc.cnr.it/graphdb-compl-it/> {
 ```sparql
 # CORRECT - Same variable ?writtenRep creates automatic join
 GRAPH <http://liita.it/data> {
-    ?lemma a lila:Lemma ;
+    ?lemma a ?lemmaType ;
            lila:hasPOS lila:noun ;
            ontolex:writtenRep ?writtenRep .
+    FILTER(?lemmaType IN (lila:Lemma, lila:Hypolemma))
     FILTER(REGEX(STR(?writtenRep), "etto$"))
 }
 

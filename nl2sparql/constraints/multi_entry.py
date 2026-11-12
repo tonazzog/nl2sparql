@@ -52,8 +52,9 @@ GRAPH <http://w3id.org/elita> {
 ### CORRECT PATTERN (MANDATORY):
 ```sparql
 # Step 1: Get the lemma (join point)
-?italianLemma a lila:Lemma ;
+?italianLemma a ?italianLemmaType ;
               ontolex:writtenRep ?italianWord .
+FILTER(?italianLemmaType IN (lila:Lemma, lila:Hypolemma))
 
 # Step 2: Emotion entry (in ELITA graph)
 ?emotionEntry ontolex:canonicalForm ?italianLemma .

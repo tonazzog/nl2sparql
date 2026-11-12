@@ -35,8 +35,9 @@ Use this when: "Find Parmigiano/Sicilian words that... and show Italian translat
 
 ```sparql
 # Step 1: Dialect lemma (no GRAPH needed!)
-?dialectLemma a lila:Lemma ;
+?dialectLemma a ?dialectLemmaType ;
               ontolex:writtenRep ?dialectWord .
+FILTER(?dialectLemmaType IN (lila:Lemma, lila:Hypolemma))
 
 # Step 2: Dialect lexical entry
 ?dialectLexEntry ontolex:canonicalForm ?dialectLemma .
@@ -53,9 +54,10 @@ Use this when: "Find Parmigiano/Sicilian words that... and show Italian translat
 ```sparql
 SELECT ?parmigianoLemma ?parmigianoWord ?italianLemma ?italianWord
 WHERE {
-  ?parmigianoLemma a lila:Lemma ;
+  ?parmigianoLemma a ?parmigianoLemmaType ;
                    ontolex:writtenRep ?parmigianoWord ;
                    lila:hasPOS lila:verb .
+  FILTER(?parmigianoLemmaType IN (lila:Lemma, lila:Hypolemma))
   ?parmigianoLexEntry ontolex:canonicalForm ?parmigianoLemma .
   ?italianLexEntry vartrans:translatableAs ?parmigianoLexEntry ;
                    ontolex:canonicalForm ?italianLemma .
@@ -72,8 +74,9 @@ Use this when: "Find Italian words that... and show Parmigiano/Sicilian translat
 
 ```sparql
 # Step 1: Italian lemma
-?italianLemma a lila:Lemma ;
+?italianLemma a ?italianLemmaType ;
               ontolex:writtenRep ?italianWord .
+FILTER(?italianLemmaType IN (lila:Lemma, lila:Hypolemma))
 
 # Step 2: Italian lexical entry
 ?italianLexEntry ontolex:canonicalForm ?italianLemma .
@@ -90,8 +93,9 @@ Use this when: "Find Italian words that... and show Parmigiano/Sicilian translat
 ```sparql
 SELECT ?italianWord ?parmigianoWord
 WHERE {
-  ?italianLemma a lila:Lemma ;
+  ?italianLemma a ?italianLemmaType ;
                 ontolex:writtenRep ?italianWord .
+  FILTER(?italianLemmaType IN (lila:Lemma, lila:Hypolemma))
   ?italianLexEntry ontolex:canonicalForm ?italianLemma .
   ?italianLexEntry vartrans:translatableAs ?parmigianoLexEntry .
   ?parmigianoLexEntry ontolex:canonicalForm ?parmigianoLemma .
@@ -232,8 +236,9 @@ WHERE {
   # 2. Link to LiITA lemma
   ?word ontolex:canonicalForm ?italianLemma .
   GRAPH <http://liita.it/data> {
-    ?italianLemma a lila:Lemma ;
+    ?italianLemma a ?italianLemmaType ;
                   lila:hasPOS lila:adjective .
+    FILTER(?italianLemmaType IN (lila:Lemma, lila:Hypolemma))
   }
 
   # 3. Sicilian translation (via Italian lexical entry for Sicilian)
@@ -262,8 +267,9 @@ WHERE {
 ### Translation + Sentiment/Emotion:
 ```sparql
 # Italian lemma as join point
-?italianLemma a lila:Lemma ;
+?italianLemma a ?italianLemmaType ;
               ontolex:writtenRep ?italianWord .
+FILTER(?italianLemmaType IN (lila:Lemma, lila:Hypolemma))
 
 # Sentiment on one lexical entry
 ?polarityEntry ontolex:canonicalForm ?italianLemma ;

@@ -185,7 +185,7 @@ Translate the following natural language question into a valid SPARQL query for 
 1. Include all necessary PREFIX declarations
 2. Follow the mandatory patterns for the query type
 3. Use correct graph locations for each property
-4. Use appropriate LIMIT (10-50 results)
+4. Use SELECT DISTINCT for lists; add LIMIT only if the question asks for the first/top N or a ranking
 5. Output ONLY the SPARQL query, no explanations
 
 **SPARQL Query**:

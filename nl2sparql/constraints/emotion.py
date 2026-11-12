@@ -8,14 +8,18 @@ EMOTION_MANDATORY_PATTERNS = """
 # Emotion annotations are in the ELITA graph
 GRAPH <http://w3id.org/elita> {
     ?expression elita:HasEmotion ?emotion .
-    ?expression marl:Polarity ?polarity .
-    ?expression marl:hasPolarityValue ?polarityValue .
     ?emotion rdfs:label ?emotionLabel .
 }
 
+# Sentix polarity is on a DIFFERENT lexical entry (no named graph)
+?polarityEntry ontolex:canonicalForm ?italianLemma ;
+               marl:hasPolarity ?polarity ;          # marl:Positive / marl:Negative / marl:Neutral (no labels)
+               marl:hasPolarityValue ?polarityValue .  # numeric, in [-1, 1]; a lemma can have several values
+
 # Lemmas are in the main data graph
 GRAPH <http://liita.it/data> {
-    ?italianLemma a lila:Lemma .
+    ?italianLemma a ?italianLemmaType .
+    FILTER(?italianLemmaType IN (lila:Lemma, lila:Hypolemma))
     ?italianLemma ontolex:writtenRep ?italianWord .
 }
 
@@ -39,27 +43,26 @@ GRAPH <http://liita.it/data> {
 ?emotion rdfs:label ?emotionLabel .
 ?expression rdfs:label ?expressionLabel .
 
-# Polarity (in ELITA graph)
-?expression marl:Polarity ?polarity .
-?expression marl:hasPolarityValue ?polarityValue .
+# Polarity (Sentix entry, no named graph, linked to the lemma by its own ontolex:canonicalForm)
+?polarityEntry marl:hasPolarity marl:Positive .      # polarity class: marl:Positive / marl:Negative / marl:Neutral
+?polarityEntry marl:hasPolarityValue ?polarityValue .
+# The marl polarity classes have NO rdfs:label: never filter polarity through a label.
 
 # Common filters
 FILTER(?polarityValue > 0.7)  # Highly positive
 FILTER(?polarityValue < -0.5) # Negative
-FILTER regex(str(?emotionLabel), "gioia", "i")  # Specific emotion
+?expression elita:HasEmotion elita:Gioia .  # Specific emotion (IRI)
 ```
 
-### 4. VALID EMOTION LABELS (use these in filters):
-- "gioia" (joy)
-- "tristezza" (sadness)
-- "paura" (fear)
-- "rabbia" (anger)
-- "amore" (love)
-- "sorpresa" (surprise)
+### 4. THE NINE ELITA EMOTION CATEGORIES (IRIs elita:<Name>, rdfs:label = <Name>):
+- elita:Gioia (joy), elita:Tristezza (sadness), elita:Paura (fear), elita:Rabbia (anger), elita:Disgusto (disgust),
+  elita:Sorpresa (surprise), elita:Fiducia (trust), elita:Aspettativa (anticipation), elita:Amore (love)
+- Always use the Italian names, also when the question is in English (Trust -> elita:Fiducia).
 
 ### 5. COMMON ANTI-PATTERNS TO AVOID:
 - `?lemma elita:HasEmotion ?emotion` - Emotions are NOT on lemmas
-- `?lemma marl:Polarity ?polarity` - Polarity is NOT on lemmas
+- `?lemma marl:hasPolarity ?polarity` - Polarity is NOT on lemmas (it is on the Sentix lexical entry)
+- `?polarity rdfs:label "Positive"` - polarity classes have no labels: use marl:Positive or the numeric value
 - Querying emotions without GRAPH <http://w3id.org/elita>
 - Forgetting to link via ontolex:canonicalForm
 - Using emotions outside the ELITA graph
@@ -71,8 +74,9 @@ FILTER regex(str(?emotionLabel), "gioia", "i")  # Specific emotion
 SELECT DISTINCT ?italianWord ?emotionLabel ?polarityValue
 WHERE {
   GRAPH <http://liita.it/data> {
-    ?italianLemma a lila:Lemma ;
+    ?italianLemma a ?italianLemmaType ;
                   ontolex:writtenRep ?italianWord .
+    FILTER(?italianLemmaType IN (lila:Lemma, lila:Hypolemma))
   }
 
   ?emotionEntry ontolex:canonicalForm ?italianLemma .
@@ -91,9 +95,10 @@ LIMIT 50
 SELECT DISTINCT ?italianWord ?emotionLabel ?pos
 WHERE {
   GRAPH <http://liita.it/data> {
-    ?italianLemma a lila:Lemma ;
+    ?italianLemma a ?italianLemmaType ;
                   lila:hasPOS ?pos ;
                   ontolex:writtenRep ?italianWord .
+    FILTER(?italianLemmaType IN (lila:Lemma, lila:Hypolemma))
   }
 
   ?emotionEntry ontolex:canonicalForm ?italianLemma .
@@ -113,8 +118,9 @@ LIMIT 50
 SELECT DISTINCT ?italianWord
 WHERE {
   GRAPH <http://liita.it/data> {
-    ?italianLemma a lila:Lemma ;
+    ?italianLemma a ?italianLemmaType ;
                   ontolex:writtenRep ?italianWord .
+    FILTER(?italianLemmaType IN (lila:Lemma, lila:Hypolemma))
   }
 
   ?emotionEntry ontolex:canonicalForm ?italianLemma .
@@ -138,9 +144,10 @@ EMOTION_COMBINATION_PATTERNS = {
     ("basic", "emotion"): {
         "mandatory_structure": """
         GRAPH <http://liita.it/data> {
-            ?italianLemma a lila:Lemma ;
+            ?italianLemma a ?italianLemmaType ;
                           lila:hasPOS ?pos ;
                           ontolex:writtenRep ?italianWord .
+            FILTER(?italianLemmaType IN (lila:Lemma, lila:Hypolemma))
         }
 
         ?emotionEntry ontolex:canonicalForm ?italianLemma .
@@ -161,8 +168,9 @@ EMOTION_COMBINATION_PATTERNS = {
     ("translation", "emotion"): {
         "mandatory_structure": """
         GRAPH <http://liita.it/data> {
-            ?italianLemma a lila:Lemma ;
+            ?italianLemma a ?italianLemmaType ;
                           ontolex:writtenRep ?italianWord .
+            FILTER(?italianLemmaType IN (lila:Lemma, lila:Hypolemma))
         }
 
         ?emotionEntry ontolex:canonicalForm ?italianLemma ;
@@ -187,8 +195,9 @@ EMOTION_COMBINATION_PATTERNS = {
     ("sense_definition", "emotion"): {
         "mandatory_structure": """
         GRAPH <http://liita.it/data> {
-            ?italianLemma a lila:Lemma ;
+            ?italianLemma a ?italianLemmaType ;
                           ontolex:writtenRep ?italianWord .
+            FILTER(?italianLemmaType IN (lila:Lemma, lila:Hypolemma))
         }
 
         ?emotionEntry ontolex:canonicalForm ?italianLemma .

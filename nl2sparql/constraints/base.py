@@ -24,6 +24,16 @@ LiIta is a multi-source linguistic knowledge base with:
 3. Dialect translations (Sicilian, Parmigiano)
 4. CompL-it semantic data (senses, definitions, relations)
 
+## CONVENTIONS (MANDATORY):
+- Italian lemmas are lila:Lemma OR lila:Hypolemma (participles, adverbs in -mente...): always
+  `?lemma a ?lemmaType . FILTER(?lemmaType IN (lila:Lemma, lila:Hypolemma))` inside GRAPH <http://liita.it/data>.
+- Part of speech: lila:hasPOS with lila: IRIs only: lila:noun, lila:verb, lila:adjective, lila:adverb, lila:proper_noun,
+  lila:pronoun, lila:interjection, lila:adposition, lila:determiner, lila:numeral, lila:particle,
+  lila:coordinating_conjunction, lila:subordinating_conjunction, lila:other. Never lexinfo:noun / lexinfo:adjective.
+- Sentix polarity: marl:hasPolarity marl:Positive|marl:Negative|marl:Neutral (no rdfs:label) and marl:hasPolarityValue.
+- Lists: SELECT DISTINCT. No LIMIT unless the question asks for the first/top N or a ranking.
+- LiITA does not contain inflected forms (no ontolex:otherForm, no tense/mood/person): only lemmas and their variants.
+
 ## CRITICAL ARCHITECTURE OVERVIEW:
 
 ### THREE DATA SOURCES:
@@ -60,8 +70,9 @@ Multiple Lexical Entries:
 ### Basic Pattern:
 ```sparql
 GRAPH <http://liita.it/data> {
-    ?italianLemma a lila:Lemma ;
+    ?italianLemma a ?italianLemmaType ;
                   ontolex:writtenRep ?italianWord .
+    FILTER(?italianLemmaType IN (lila:Lemma, lila:Hypolemma))
 }
 
 ?emotionEntry ontolex:canonicalForm ?italianLemma .
@@ -95,8 +106,9 @@ GRAPH <http://w3id.org/elita> {
 
 ### Basic Pattern:
 ```sparql
-?italianLemma a lila:Lemma ;
+?italianLemma a ?italianLemmaType ;
               ontolex:writtenRep ?italianWord .
+FILTER(?italianLemmaType IN (lila:Lemma, lila:Hypolemma))
 
 ?translationEntry ontolex:canonicalForm ?italianLemma ;
                   vartrans:translatableAs ?dialectLexEntry .
@@ -211,8 +223,9 @@ SERVICE <https://klab.ilc.cnr.it/graphdb-compl-it/> {
 # Link to LiIta using shared URI
 ?word ontolex:canonicalForm ?italianLemma .
 GRAPH <http://liita.it/data> {
-    ?italianLemma a lila:Lemma ;
+    ?italianLemma a ?italianLemmaType ;
                   lila:hasPOS lila:noun .
+    FILTER(?italianLemmaType IN (lila:Lemma, lila:Hypolemma))
 }
 
 # Emotion (uses same ?italianLemma)
