@@ -32,7 +32,9 @@ LiIta is a multi-source linguistic knowledge base with:
   lila:coordinating_conjunction, lila:subordinating_conjunction, lila:other. Never lexinfo:noun / lexinfo:adjective.
 - Sentix polarity: marl:hasPolarity marl:Positive|marl:Negative|marl:Neutral (no rdfs:label) and marl:hasPolarityValue.
   ELIta entries carry their own polarity too (marl:Polarity "Positive"/"Negative" literal and marl:hasPolarityValue,
-  in GRAPH <http://w3id.org/elita>).
+  in GRAPH <http://w3id.org/elita>). "Polarity", "sentiment" and "Sentix polarity" mean Sentix: always include
+  `marl:hasPolarity ?polarity` on the polarity entry (otherwise the ELIta value is picked up too). Use the ELIta value
+  only when the question explicitly asks for the polarity in ELIta.
 - CompL-it relations (inside SERVICE): `?a lexinfo:hyponym ?b` = ?a is more specific than ?b;
   `?a lexinfo:hypernym ?b` = ?a is more general than ?b; `?a lexinfo:partMeronym ?b` = ?a is a part of ?b.
 - Senses, definitions and semantic relations are only in CompL-it (SERVICE), never in LiITA.
@@ -96,6 +98,7 @@ GRAPH <http://w3id.org/elita> {
 }
 
 ?polarityEntry ontolex:canonicalForm ?italianLemma ;
+               marl:hasPolarity ?polarity ;            # selects the Sentix entry
                marl:hasPolarityValue ?polarityValue .
 ```
 

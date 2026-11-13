@@ -46,7 +46,8 @@ GRAPH <http://liita.it/data> {
 
 # Polarity (Sentix entry, no named graph, linked to the lemma by its own ontolex:canonicalForm)
 ?polarityEntry marl:hasPolarity marl:Positive .      # polarity class: marl:Positive / marl:Negative / marl:Neutral
-?polarityEntry marl:hasPolarityValue ?polarityValue .
+?polarityEntry marl:hasPolarity ?polarity ;          # without a class filter, still require marl:hasPolarity
+               marl:hasPolarityValue ?polarityValue .  # (ELIta entries also have a marl:hasPolarityValue)
 # The marl polarity classes have NO rdfs:label: never filter polarity through a label.
 
 # Common filters
@@ -181,8 +182,7 @@ EMOTION_COMBINATION_PATTERNS = {
         ?dialectLemma ontolex:writtenRep ?dialectWord .
 
         GRAPH <http://w3id.org/elita> {
-            ?emotionEntry elita:HasEmotion ?emotion ;
-                          marl:hasPolarityValue ?polarityValue .
+            ?emotionEntry elita:HasEmotion ?emotion .
             ?emotion rdfs:label ?emotionLabel .
         }
         """,
@@ -204,8 +204,7 @@ EMOTION_COMBINATION_PATTERNS = {
         ?emotionEntry ontolex:canonicalForm ?italianLemma .
 
         GRAPH <http://w3id.org/elita> {
-            ?emotionEntry elita:HasEmotion ?emotion ;
-                          marl:hasPolarityValue ?polarityValue .
+            ?emotionEntry elita:HasEmotion ?emotion .
             ?emotion rdfs:label ?emotionLabel .
         }
 
