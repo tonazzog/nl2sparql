@@ -11,7 +11,8 @@ GRAPH <http://w3id.org/elita> {
     ?emotion rdfs:label ?emotionLabel .
 }
 
-# Sentix polarity is on a DIFFERENT lexical entry (no named graph)
+# The ELIta entry also has its own polarity: marl:Polarity "Positive"/"Negative" (literal) and marl:hasPolarityValue
+# Sentix polarity is on a DIFFERENT lexical entry (graph <http://w3id.org/sentix>), the one with marl:hasPolarity
 ?polarityEntry ontolex:canonicalForm ?italianLemma ;
                marl:hasPolarity ?polarity ;          # marl:Positive / marl:Negative / marl:Neutral (no labels)
                marl:hasPolarityValue ?polarityValue .  # numeric, in [-1, 1]; a lemma can have several values

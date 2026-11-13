@@ -31,6 +31,11 @@ LiIta is a multi-source linguistic knowledge base with:
   lila:pronoun, lila:interjection, lila:adposition, lila:determiner, lila:numeral, lila:particle,
   lila:coordinating_conjunction, lila:subordinating_conjunction, lila:other. Never lexinfo:noun / lexinfo:adjective.
 - Sentix polarity: marl:hasPolarity marl:Positive|marl:Negative|marl:Neutral (no rdfs:label) and marl:hasPolarityValue.
+  ELIta entries carry their own polarity too (marl:Polarity "Positive"/"Negative" literal and marl:hasPolarityValue,
+  in GRAPH <http://w3id.org/elita>).
+- CompL-it relations (inside SERVICE): `?a lexinfo:hyponym ?b` = ?a is more specific than ?b;
+  `?a lexinfo:hypernym ?b` = ?a is more general than ?b; `?a lexinfo:partMeronym ?b` = ?a is a part of ?b.
+- Senses, definitions and semantic relations are only in CompL-it (SERVICE), never in LiITA.
 - Lists: SELECT DISTINCT. No LIMIT unless the question asks for the first/top N or a ranking.
 - LiITA does not contain inflected forms (no ontolex:otherForm, no tense/mood/person): only lemmas and their variants.
 
@@ -152,8 +157,8 @@ SERVICE <https://klab.ilc.cnr.it/graphdb-compl-it/> {
           ontolex:sense ?sense .
     FILTER(STR(?writtenRep) = "veicolo")
 
-    # Find hypernyms (more general)
-    ?sense lexinfo:hypernym ?hypSense .
+    # Find hypernyms (more general): ?sense is a hyponym of ?hypSense
+    ?sense lexinfo:hyponym ?hypSense .
     ?hypWord ontolex:sense ?hypSense ;
              ontolex:canonicalForm [ ontolex:writtenRep ?hypernymWord ] .
 }
