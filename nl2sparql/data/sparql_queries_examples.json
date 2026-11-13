@@ -326,7 +326,7 @@
   },
   {
     "id": 20,
-    "sparql": "# This query retrieves hyponyms of the Italian lemma \"veicolo\" from the LiITA Lemma Bank, leveraging OntoLex-Lemon semantic relations to find more specific lexical senses linked by hypernymy.\nPREFIX lexinfo: <http://www.lexinfo.net/ontology/3.0/lexinfo#>\nPREFIX ontolex: <http://www.w3.org/ns/lemon/ontolex#>\n\nSELECT DISTINCT ?hyponymWord\nWHERE {\n  SERVICE <https://klab.ilc.cnr.it/graphdb-compl-it/> {\n    ?word ontolex:canonicalForm [ ontolex:writtenRep ?wrIta ] .\n    FILTER ( STR(?wrIta) = \"veicolo\" ) .\n    ?word ontolex:sense ?sense .\n    ?sense lexinfo:hypernym ?hypoSense .  # ?sense is a hypernym of (more general than) ?hypoSense\n    ?hypoWord ontolex:sense ?hypoSense ;\n        ontolex:canonicalForm [ ontolex:writtenRep ?hyponymWord ] .\n  }\n}\n",
+    "sparql": "# This query retrieves hyponyms of the Italian lemma \"veicolo\" from the LiITA Lemma Bank, leveraging OntoLex-Lemon semantic relations to find more specific lexical senses linked by hypernymy.\nPREFIX lexinfo: <http://www.lexinfo.net/ontology/3.0/lexinfo#>\nPREFIX ontolex: <http://www.w3.org/ns/lemon/ontolex#>\n\nSELECT DISTINCT ?hyponymWr\nWHERE {\n  SERVICE <https://klab.ilc.cnr.it/graphdb-compl-it/> {\n    ?word ontolex:canonicalForm [ ontolex:writtenRep ?wrIta ] .\n    FILTER ( STR(?wrIta) = \"veicolo\" ) .\n    ?word ontolex:sense ?sense .\n    ?sense lexinfo:hypernym ?hypoSense .  # ?sense is a hypernym of (more general than) ?hypoSense\n    ?hyponymWord ontolex:sense ?hypoSense ;\n        ontolex:canonicalForm [ ontolex:writtenRep ?hyponymWr ] .\n  }\n}\n",
     "nl": "Find Hyponyms of \"veicolo\" (vehicle); Find all words that are more specific than \"veicolo\" (i.e., hyponyms)",
     "nl_variants": {
       "generic": "List all words in Italian that are more specific types or subcategories of the word \"veicolo\" (vehicle).",
@@ -343,7 +343,7 @@
   },
   {
     "id": 21,
-    "sparql": "# This query retrieves Italian meronyms (parts) of the lemma \"corpo\" from the LiITA Lemma Bank using OntoLex-Lemon structures.\nPREFIX lexinfo: <http://www.lexinfo.net/ontology/3.0/lexinfo#>\nPREFIX ontolex: <http://www.w3.org/ns/lemon/ontolex#>\n\nSELECT DISTINCT ?partWord ?sense\nWHERE {\n  SERVICE <https://klab.ilc.cnr.it/graphdb-compl-it/> {\n    ?word ontolex:canonicalForm [ ontolex:writtenRep ?wrIta ] ;\n        ontolex:sense ?sense .\n    FILTER( STR(?wrIta) = \"corpo\" ) .\n    ?partSense lexinfo:partMeronym ?sense .  # ?partSense is a part of ?sense\n    ?partLemma ontolex:sense ?partSense ;\n        ontolex:canonicalForm [ ontolex:writtenRep ?partWord ] .\n  }\n}\n",
+    "sparql": "# This query retrieves Italian meronyms (parts) of the lemma \"corpo\" from the LiITA Lemma Bank using OntoLex-Lemon structures.\nPREFIX lexinfo: <http://www.lexinfo.net/ontology/3.0/lexinfo#>\nPREFIX ontolex: <http://www.w3.org/ns/lemon/ontolex#>\n\nSELECT DISTINCT ?partWr ?sense\nWHERE {\n  SERVICE <https://klab.ilc.cnr.it/graphdb-compl-it/> {\n    ?word ontolex:canonicalForm [ ontolex:writtenRep ?wrIta ] ;\n        ontolex:sense ?sense .\n    FILTER( STR(?wrIta) = \"corpo\" ) .\n    ?partSense lexinfo:partMeronym ?sense .  # ?partSense is a part of ?sense\n    ?partWord ontolex:sense ?partSense ;\n        ontolex:canonicalForm [ ontolex:writtenRep ?partWr ] .\n  }\n}\n",
     "nl": "Find Meronyms of \"corpo\" (body);  find all Italian words that represent parts of a 'corpo' (body)",
     "nl_variants": {
       "generic": "List Italian words that are parts of the word 'corpo' (body).",
@@ -1682,7 +1682,7 @@
   },
   {
     "id": 118,
-    "sparql": "# This query retrieves hyponyms (more specific types) of the lemma \"animale\" from the LiITA knowledge base using OntoLex-Lemon structures.\nPREFIX lexinfo: <http://www.lexinfo.net/ontology/3.0/lexinfo#>\nPREFIX ontolex: <http://www.w3.org/ns/lemon/ontolex#>\n\nSELECT DISTINCT ?hyponymWord\nWHERE {\n  SERVICE <https://klab.ilc.cnr.it/graphdb-compl-it/> {\n    ?word ontolex:canonicalForm [ ontolex:writtenRep ?wrIta ] .\n    FILTER ( STR(?wrIta) = \"animale\" ) .\n    ?word ontolex:sense ?sense .\n    ?sense lexinfo:hypernym ?hypoSense .  # ?sense is a hypernym of (more general than) ?hypoSense\n    ?hypoWord ontolex:sense ?hypoSense ;\n        ontolex:canonicalForm [ ontolex:writtenRep ?hyponymWord ] .\n  }\n}\n",
+    "sparql": "# This query retrieves hyponyms (more specific types) of the lemma \"animale\" from the LiITA knowledge base using OntoLex-Lemon structures.\nPREFIX lexinfo: <http://www.lexinfo.net/ontology/3.0/lexinfo#>\nPREFIX ontolex: <http://www.w3.org/ns/lemon/ontolex#>\n\nSELECT DISTINCT ?hyponymWr\nWHERE {\n  SERVICE <https://klab.ilc.cnr.it/graphdb-compl-it/> {\n    ?word ontolex:canonicalForm [ ontolex:writtenRep ?wrIta ] .\n    FILTER ( STR(?wrIta) = \"animale\" ) .\n    ?word ontolex:sense ?sense .\n    ?sense lexinfo:hypernym ?hypoSense .  # ?sense is a hypernym of (more general than) ?hypoSense\n    ?hyponymWord ontolex:sense ?hypoSense ;\n        ontolex:canonicalForm [ ontolex:writtenRep ?hyponymWr ] .\n  }\n}\n",
     "nl": "Find hyponyms of 'animale' (animal) - more specific types",
     "nl_variants": {
       "generic": "List specific subtypes or examples that are kinds of the word 'animal'.",
@@ -1699,7 +1699,7 @@
   },
   {
     "id": 119,
-    "sparql": "# This query retrieves broader category terms (hypernyms) of the Italian word \"cane\" from the LiITA knowledge base using OntoLex-Lemon structures.\nPREFIX lexinfo: <http://www.lexinfo.net/ontology/3.0/lexinfo#>\nPREFIX ontolex: <http://www.w3.org/ns/lemon/ontolex#>\n\nSELECT DISTINCT ?hypernymWord\nWHERE {\n  SERVICE <https://klab.ilc.cnr.it/graphdb-compl-it/> {\n    ?word ontolex:canonicalForm [ ontolex:writtenRep ?wrIta ] .\n    FILTER ( STR(?wrIta) = \"cane\" ) .\n    ?word ontolex:sense ?sense .\n    ?sense lexinfo:hyponym ?hyperSense .  # ?sense is a hyponym of (more specific than) ?hyperSense\n    ?hyperWord ontolex:sense ?hyperSense ;\n        ontolex:canonicalForm [ ontolex:writtenRep ?hypernymWord ] .\n  }\n}\n",
+    "sparql": "# This query retrieves broader category terms (hypernyms) of the Italian word \"cane\" from the LiITA knowledge base using OntoLex-Lemon structures.\nPREFIX lexinfo: <http://www.lexinfo.net/ontology/3.0/lexinfo#>\nPREFIX ontolex: <http://www.w3.org/ns/lemon/ontolex#>\n\nSELECT DISTINCT ?hypernymWr\nWHERE {\n  SERVICE <https://klab.ilc.cnr.it/graphdb-compl-it/> {\n    ?word ontolex:canonicalForm [ ontolex:writtenRep ?wrIta ] .\n    FILTER ( STR(?wrIta) = \"cane\" ) .\n    ?word ontolex:sense ?sense .\n    ?sense lexinfo:hyponym ?hyperSense .  # ?sense is a hyponym of (more specific than) ?hyperSense\n    ?hypernymWord ontolex:sense ?hyperSense ;\n        ontolex:canonicalForm [ ontolex:writtenRep ?hypernymWr ] .\n  }\n}\n",
     "nl": "What is 'cane' (dog) a type of? Find broader categories",
     "nl_variants": {
       "generic": "What broader categories or types does the Italian word 'cane' (dog) belong to?",
