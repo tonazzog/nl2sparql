@@ -162,8 +162,8 @@ SERVICE <https://klab.ilc.cnr.it/graphdb-compl-it/> {
 
     # Find hypernyms (more general): ?sense is a hyponym of ?hypSense
     ?sense lexinfo:hyponym ?hypSense .
-    ?hypWord ontolex:sense ?hypSense ;
-             ontolex:canonicalForm [ ontolex:writtenRep ?hypernymWord ] .
+    ?hypernymWord ontolex:sense ?hypSense ;
+                  ontolex:canonicalForm [ ontolex:writtenRep ?hypernymWr ] .
 }
 ```
 
