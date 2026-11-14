@@ -178,7 +178,7 @@ SERVICE <https://klab.ilc.cnr.it/graphdb-compl-it/> {
 - NO references to variables bound outside SERVICE
 - Linking to LiITA (`?word ontolex:canonicalForm ?lemma`) must be OUTSIDE SERVICE
 - When using shared URI linking, NO additional FILTER needed inside SERVICE for matching
-- Inside the CompL-it SERVICE: no subqueries, MINUS, NOT EXISTS or UNION (the endpoint rejects them); for negation use OPTIONAL { ... } FILTER(!BOUND(...)) inside it. Outside it: no VALUES joined with SERVICE variables, and never FILTER NOT EXISTS { SERVICE ... } (it silently excludes nothing). For alternatives write one SERVICE per UNION branch; for aggregates or reference values use a subquery that contains its own SERVICE.
+- Inside the CompL-it SERVICE the endpoint rejects subqueries, MINUS, NOT EXISTS and FILTER(... IN (...)): match several words with REGEX(STR(?wr), "^(a|b|c)$") or with ||, and express negation as OPTIONAL { ... } FILTER(!BOUND(...)) inside the SERVICE. Outside it: no VALUES joined with SERVICE variables, and never FILTER NOT EXISTS { SERVICE ... } (it silently excludes nothing). UNION inside the SERVICE and subqueries that contain their own SERVICE work.
 
 ### CRITICAL: Linking CompL-it to LiIta
 
