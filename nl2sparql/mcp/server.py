@@ -664,8 +664,24 @@ class NL2SPARQLMCPServer:
         else:
             raise ValueError(f"Unknown tool: {name}")
 
+    def preload_models(self) -> None:
+        """Load the embedding models before the stdio loop starts.
+
+        On Windows, loading the sentence-transformer models for the first time
+        while the stdio transport is already reading from stdin can block
+        indefinitely (observed 2026-11-17: infer_patterns and retrieve_examples
+        never answered, validate_sparql did). Loading them up front avoids it
+        and also makes the first tool calls fast.
+        """
+        from ..retrieval.patterns import infer_patterns_hybrid
+
+        infer_patterns_hybrid("warm up")
+        _ = self.hybrid_retriever
+        _ = self.ontology_retriever
+
     async def run(self):
         """Run the MCP server with stdio transport."""
+        self.preload_models()
         async with stdio_server() as (read_stream, write_stream):
             await self.server.run(
                 read_stream,

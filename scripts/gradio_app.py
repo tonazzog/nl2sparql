@@ -793,7 +793,7 @@ def main():
     parser.add_argument(
         "--provider", "-p",
         default="mistral",
-        choices=["openai", "anthropic", "mistral", "gemini", "ollama"],
+        choices=["openai", "anthropic", "mistral", "gemini", "ollama", "claudecode"],
         help="LLM provider (default: mistral)"
     )
     parser.add_argument(

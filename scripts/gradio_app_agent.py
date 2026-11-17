@@ -693,7 +693,7 @@ def main():
     parser.add_argument(
         "--orchestrator-provider", "-op",
         default="mistral",
-        choices=["openai", "anthropic", "mistral", "gemini", "ollama"],
+        choices=["openai", "anthropic", "mistral", "gemini", "ollama", "claudecode"],
         help="Orchestrator LLM provider (default: mistral)"
     )
     parser.add_argument(
@@ -711,7 +711,7 @@ def main():
     parser.add_argument(
         "--translator-provider", "-tp",
         default="mistral",
-        choices=["openai", "anthropic", "mistral", "gemini", "ollama"],
+        choices=["openai", "anthropic", "mistral", "gemini", "ollama", "claudecode"],
         help="Translator LLM provider (default: mistral)"
     )
     parser.add_argument(
