@@ -1,5 +1,8 @@
 # F1 Score on Answers Evaluator
 
+> **Update (November 2026).** Two rules were added to the evaluator after this document was written, and both are on by default: (1) **column mapping by value** — each gold answer column is matched to the predicted column whose set of values overlaps most with it (Dice coefficient at least 0.1, one-to-one assignment); the name-, category- and position-based phases described below are used only for gold columns with no overlapping predicted column (`column_mapping="name"` restores the old behaviour); (2) **echo columns** — a gold column that holds the same value on every row, written as a literal in the gold query (typically the seed word of the question), is not required (`ignore_echo_columns=False` restores the old behaviour). The module docstring of `nl2sparql/evaluation/f1_evaluator.py` is the reference.
+
+
 This document describes the F1 Score on Answers evaluation metric used to measure how well a predicted SPARQL query retrieves the same results as the gold (reference) query.
 
 ## Overview

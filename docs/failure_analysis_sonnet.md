@@ -1,5 +1,8 @@
 # Failure Analysis — claude-sonnet-4-6 on the 100-Query Benchmark
 
+> **Historical document (February 2026).** This analysis was computed on an earlier version of the test set whose gold queries were later found to contain errors: in 10 of the 17 SEMANTIC_RELATION questions the gold followed the relation in the wrong direction. The conclusions on SEMANTIC_RELATION below therefore do not hold; see the thesis (Chapter 6, *Evaluation Artefacts*) for the corrected evaluation.
+
+
 **Model**: `claude-sonnet-4-6`
 **Dataset**: `nl2sparql/data/test_dataset.json` (100 test cases, English)
 **Report**: `f1_report_anthropic_claude-sonnet-4-6.json`

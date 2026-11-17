@@ -8,7 +8,7 @@ NL2SPARQL translates natural language questions (in Italian or English) into SPA
 
 ### Features
 
-- **Multi-LLM Support**: Works with OpenAI, Anthropic, Mistral, Google Gemini, and local Ollama models
+- **Multi-LLM Support**: Works with OpenAI, Anthropic, Mistral, Google Gemini, local Ollama models, and Claude Code (local CLI, no API key)
 - **Hybrid Retrieval**: Combines semantic search (sentence transformers + FAISS), BM25, and pattern matching
 - **Ontology-Aware**: Semantic search over ontology definitions to discover relevant properties and classes
 - **Domain-Specific Constraints**: Built-in knowledge of LiITA's architecture (emotions, translations, semantic relations)
@@ -20,6 +20,16 @@ NL2SPARQL translates natural language questions (in Italian or English) into SPA
 - **MCP Server**: Model Context Protocol server for integration with Claude Desktop and other MCP clients, including an LLM-free mode where the client writes the SPARQL
 - **Web UI**: Gradio-based web interface for interactive query generation
 - **F1 Evaluation**: Answer-set comparison by executing queries on the LiITA endpoint (precision, recall, F1)
+
+## Thesis Version and Related Systems
+
+NL2SPARQL is one of three NL-to-SPARQL systems for LiITA developed for the master's thesis *Querying LiITA in Natural Language: Three Neuro-Symbolic Approaches to NL-to-SPARQL Translation*:
+
+- [PRISMA](https://github.com/tonazzog/prisma-per-liita) — the LLM classifies the intent, SPARQL is assembled by rules;
+- [MoSAIC](https://github.com/tonazzog/mosaic-liita) — the LLM composes typed blocks, SPARQL is assembled deterministically;
+- **NL2SPARQL** (this repository) — the LLM generates SPARQL, grounded by retrieved examples and constraints.
+
+The version evaluated in the thesis is tagged **`thesis-final-2026-11-15`**. Compared with the original version, its domain knowledge was revised while the pipeline was left unchanged: the example corpus was checked against the endpoint, corrected and extended to 159 examples (with an Italian formulation for each), and the constraints were aligned with the conventions of the data (lemmas *and* hypolemmas, Sentix polarity through `marl:hasPolarity`, the restrictions of the endpoint on the CompL-it `SERVICE` clause). Translation memory is disabled in all evaluation runs.
 
 ## Installation
 
@@ -87,7 +97,7 @@ $env:MISTRAL_API_KEY="your-api-key"
 $env:GEMINI_API_KEY="your-api-key"
 ```
 
-Ollama runs locally and does not require an API key.
+Ollama runs locally and does not require an API key. The `claudecode` provider calls a local, logged-in installation of the [Claude Code](https://docs.claude.com/en/docs/claude-code) CLI and does not require an API key either.
 
 ## Quick Start
 
@@ -616,7 +626,7 @@ nl2sparql/
 │   └── batch_evaluate.py          # Multi-model comparison
 └── data/
     ├── sparql_queries_examples.json  # Example queries dataset (few-shot retrieval)
-    ├── test_dataset.json             # Evaluation test cases (100 cases)
+    ├── test_dataset.json             # Regression set of the thesis (100 cases)
     └── ontology.json                 # Ontology catalog (classes & properties)
 ```
 
@@ -638,6 +648,7 @@ The system understands LiITA's multi-source architecture:
 | Mistral | mistral-large-4-0 | mistral-medium-latest, mistral-small-latest |
 | Gemini | gemini-3.6-flash | gemini-3.8-flash, gemini-3.5-flash-lite |
 | Ollama | llama3.1 | mistral, codellama, phi3 |
+| Claude Code | claude-sonnet-4-6 | claude-opus-4-6, claude-haiku-4-5-20251001 |
 
 ## Evaluation
 
@@ -667,7 +678,7 @@ nl2sparql evaluate -o report.json
 Compare multiple LLM providers and models:
 
 ```bash
-# Quick comparison (GPT-4o-mini vs Claude 3.5 Haiku)
+# Quick comparison (GPT-6.1 Terra vs Claude Haiku 4.5)
 nl2sparql batch-evaluate -p quick
 
 # Compare all OpenAI models
@@ -723,6 +734,8 @@ print_comparison(comparison)
 
 The primary evaluation metric is **F1 Score on Answers**: both the gold and predicted SPARQL queries are executed against the LiITA endpoint, and their result sets are compared using precision, recall, and F1. This captures whether the system retrieves the *right answers*, not just whether the query is syntactically correct.
 
+The evaluator (`nl2sparql/evaluation/f1_evaluator.py`) is the one used in the thesis; an identical copy is used by PRISMA, MoSAIC and NL2SPARQL, so that their scores are comparable. Columns are matched **by value** (the predicted column whose values overlap most with each gold column), `LIMIT`/`OFFSET` are removed from both queries, a gold column that only repeats the seed word of the question (an *echo* column) is not required, and IRI and literal answers are accepted when the gold names both. `data/test_dataset.json` is the 100-question set of the first evaluation, used in the thesis as a **regression set**; the final evaluation used a separate test set of 86 questions, frozen before the systems were revised (thesis, Chapter 6).
+
 ```bash
 # Run F1 evaluation (English, with LIMIT stripping)
 python scripts/run_f1_evaluation.py \
@@ -731,7 +744,10 @@ python scripts/run_f1_evaluation.py \
     --language en \
     --strip-limit
 
-
+# Agentic workflow, Claude Code, another dataset in the same format
+python scripts/run_f1_evaluation.py \
+    --use-agent --provider claudecode --model claude-sonnet-4-6 \
+    --language en --strip-limit --dataset path/to/dataset.json
 ```
 
 ### Structural Metrics
