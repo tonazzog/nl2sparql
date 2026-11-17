@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "liita-nl2sparql"
-version = "0.7.2"
+version = "0.8.0"
 description = "Natural Language to SPARQL translation for the LiITA knowledge base"
 readme = "README.md"
 license = "MIT"
@@ -21,6 +21,8 @@ classifiers = [
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
 ]
 
@@ -37,7 +39,7 @@ dependencies = [
 [project.optional-dependencies]
 openai = ["openai>=1.0.0"]
 anthropic = ["anthropic>=0.18.0"]
-mistral = ["mistralai>=0.0.7"]
+mistral = ["mistralai>=1.0.0,<2.0.0"]
 gemini = ["google-generativeai>=0.3.0"]
 ollama = ["ollama>=0.1.0"]
 agent = [
@@ -72,7 +74,7 @@ synthetic = [
     "datasets>=2.14.0",  # HuggingFace datasets for export
 ]
 mcp = [
-    "mcp>=1.0.0",
+    "mcp>=1.0.0,<2.0.0",  # the server uses the 1.x decorator API (Server.list_tools), removed in 2.0
 ]
 mcp-openai = [
     "liita-nl2sparql[mcp,openai]",
@@ -112,9 +114,15 @@ nl2sparql = "nl2sparql.cli:main"
 Homepage = "https://github.com/tonazzog/nl2sparql"
 Documentation = "https://github.com/tonazzog/nl2sparql#readme"
 Repository = "https://github.com/tonazzog/nl2sparql"
+Evaluation = "https://github.com/tonazzog/liita-nl2sparql-evaluation"
 
 [tool.hatch.build.targets.wheel]
 packages = ["nl2sparql"]
+# the original example corpus (sparql_queries_examples_v1.json) is kept in the repository for reference only
+exclude = ["nl2sparql/data/sparql_queries_examples_v1.json"]
+
+[tool.hatch.build.targets.sdist]
+exclude = ["reports/", "WIP.md", "dist/", "notebooks/*.json"]
 
 [tool.black]
 line-length = 100

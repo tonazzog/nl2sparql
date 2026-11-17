@@ -15,7 +15,12 @@ Advanced usage:
     >>> result = translator.translate("Trova traduzioni siciliane di casa")
 """
 
-__version__ = "0.1.0"
+try:  # single source of truth: the version in pyproject.toml
+    from importlib.metadata import PackageNotFoundError, version as _pkg_version
+
+    __version__ = _pkg_version("liita-nl2sparql")
+except PackageNotFoundError:  # running from a source checkout that is not installed
+    __version__ = "0.8.0"
 
 from dataclasses import dataclass, field
 from typing import Optional
