@@ -97,3 +97,8 @@ CLAUDE.md
 secrets.json
 credentials.json
 .claude/
+
+# files written by notebooks/quickstart.ipynb when it is run
+notebooks/f1_report.json
+notebooks/evaluation_report.json
+notebooks/model_comparison.json
