@@ -31,6 +31,10 @@ NL2SPARQL is one of three NL-to-SPARQL systems for LiITA developed for the maste
 
 The version evaluated in the thesis is tagged **`thesis-final-2026-11-15`**. The evaluation material (question sets, reports, analysis) is in [liita-nl2sparql-evaluation](https://github.com/tonazzog/liita-nl2sparql-evaluation). Compared with the original version, its domain knowledge was revised while the pipeline was left unchanged: the example corpus was checked against the endpoint, corrected and extended to 159 examples (with an Italian formulation for each), and the constraints were aligned with the conventions of the data (lemmas *and* hypolemmas, Sentix polarity through `marl:hasPolarity`, the restrictions of the endpoint on the CompL-it `SERVICE` clause). Translation memory is disabled in all evaluation runs.
 
+### Skill-based mode
+
+Besides its basic and agentic modes and the MCP server, NL2SPARQL has a **skill-based mode**, published separately in [nl2sparql-skill](https://github.com/tonazzog/nl2sparql-skill). There, NL2SPARQL's domain knowledge (the conventions of the revised version and a subset of its example corpus) is given to a general-purpose coding agent, Claude Code, as an [Agent Skill](https://agentskills.io/specification): the agent reads the reference documents it needs, writes the query, executes it against the endpoint and checks the result before answering. No code of this package runs in that mode. On the final test set of the thesis it reached a mean F1 of 0.921, against 0.778–0.815 for the other configurations; it was developed after those configurations had been evaluated, and the conditions of its run are documented in its repository.
+
 ## Installation
 
 ```bash
